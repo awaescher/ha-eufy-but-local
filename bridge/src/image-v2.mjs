@@ -2,7 +2,7 @@
 //
 // Ported from mega-yfue/eufy-sdk (src/transport/http/decodeImageV2.ts, commit 7d1f016),
 // Apache License 2.0, see bridge/third-party/eufy-sdk-LICENSE. Changes: TypeScript -> JavaScript,
-// comments shortened.
+// comments shortened, fallback for blobs whose obfuscated head also covers the chroma tables.
 //
 // eufy-security-client 3.8 only decrypts the older `eufysecurity:` format and returns v2 blobs
 // unchanged. v2 is head-only obfuscation: everything from the standard DC-chroma Huffman table
@@ -49,6 +49,20 @@ const DHT_AC_LUMA = Buffer.from(
     "c8c9cad2d3d4d5d6d7d8d9dae1e2e3e4e5e6e7e8e9eaf1f2f3f4f5f6f7f8f9fa",
   "hex",
 );
+
+// Standard chroma Huffman tables (Annex K.3). Some blobs obfuscate a longer head that also covers
+// these; only the end of the AC table survives in plaintext, and it is the standard one.
+const DHT_DC_CHROMA = Buffer.from("ffc4001f0100030101010101010101010000000000000102030405060708090a0b", "hex");
+const DHT_AC_CHROMA = Buffer.from(
+  "ffc400b5110002010204040304070504040001027700010203110405213106124151076171132232810814429" +
+    "1a1b1c109233352f0156272d10a162434e125f11718191a262728292a35363738393a434445464748494a5354" +
+    "55565758595a636465666768696a737475767778797a82838485868788898a92939495969798999aa2a3a4a5" +
+    "a6a7a8a9aab2b3b4b5b6b7b8b9bac2c3c4c5c6c7c8c9cad2d3d4d5d6d7d8d9dae2e3e4e5e6e7e8e9eaf2f3f4f5" +
+    "f6f7f8f9fa",
+  "hex",
+);
+/** End of the standard AC-chroma values; unlike the luma table's end it lacks e1 and f1. */
+const AC_CHROMA_END = DHT_AC_CHROMA.subarray(-24);
 
 const SOI = Buffer.from([0xff, 0xd8]);
 const APP0 = Buffer.from("ffe000104a46494600010100000100010000", "hex");
@@ -204,6 +218,18 @@ export function isV2Image(data) {
 }
 
 /**
+ * The plaintext part of a v2 blob, starting with the chroma Huffman tables. Null if neither the
+ * DC-chroma table nor the end of the standard AC-chroma table is in plaintext.
+ */
+function plaintextTail(data) {
+  const cut = data.indexOf(DC_CHROMA);
+  if (cut >= 0) return data.subarray(cut);
+  const acEnd = data.indexOf(AC_CHROMA_END);
+  if (acEnd < 0) return null;
+  return Buffer.concat([DHT_DC_CHROMA, DHT_AC_CHROMA, data.subarray(acEnd + AC_CHROMA_END.length)]);
+}
+
+/**
  * Rebuilds a viewable JPEG from a v2 blob, or returns null if it is not v2 or cannot be
  * reconstructed.
  *
@@ -212,9 +238,8 @@ export function isV2Image(data) {
  */
 export function decodeImageV2(data) {
   if (!isV2Image(data)) return null;
-  const cut = data.indexOf(DC_CHROMA);
-  if (cut < 0) return null;
-  const tail = data.subarray(cut);
+  const tail = plaintextTail(data);
+  if (!tail) return null;
 
   const geometry = findGeometry(tail);
   if (!geometry) return null;

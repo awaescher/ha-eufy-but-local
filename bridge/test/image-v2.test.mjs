@@ -42,6 +42,20 @@ describe("decodeImageV2", () => {
     });
   }
 
+  it("falls back to the standard chroma tables when the obfuscated head covers them too", () => {
+    // Real HomeBase 2 blobs: only the end of the standard AC-chroma table survives in plaintext.
+    const blob = Buffer.from(fixture("v2_176x144.bin"));
+    const acChromaEnd = blob.indexOf(Buffer.from("e2e3e4e5e6e7e8e9eaf2f3f4f5f6f7f8f9fa", "hex"));
+    assert.ok(acChromaEnd > 0, "fixture uses the standard chroma tables");
+    const headStart = blob.indexOf(Buffer.from([0xff, 0xd8]));
+    blob.fill(0x11, headStart, acChromaEnd - 6);
+    assert.equal(blob.indexOf(Buffer.from([0xff, 0xc4])), -1, "no Huffman table left in plaintext");
+
+    const img = jpegJs.decode(decodeImageV2(blob));
+    assert.deepEqual([img.width, img.height], [176, 144]);
+    assert.ok(meanAbsDiff(img, original(fixture("v2_176x144.bin"))) < 20);
+  });
+
   it("returns null when the plaintext tail is missing", () => {
     assert.equal(decodeImageV2(Buffer.from("v2_eufysecurity:T8000TEST00000002:0000000000:garbage")), null);
   });

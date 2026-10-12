@@ -23,3 +23,7 @@ unchanged. The bridge decodes v2 itself with a keyless decoder ported from mega-
 is rebuilt and spliced onto the plaintext scan. Colours and contrast are approximated; the
 height is rounded up to a whole MCU (e.g. 640x368 for a 640x360 picture). This adds `jpeg-js`
 (BSD-3-Clause, no dependencies) as the bridge's second runtime dependency.
+
+On the same HomeBase some blobs obfuscate a longer head that also covers the chroma Huffman
+tables; only the end of the standard AC-chroma table is plaintext. For those the decoder inserts
+the standard (Annex K) chroma tables. With that, all 7 cameras' thumbnails decode.
