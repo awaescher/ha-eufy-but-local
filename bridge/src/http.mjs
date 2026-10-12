@@ -11,6 +11,8 @@
 //   POST /api/config {cloudPush}         switch optional cloud features (off by default)
 //   POST /api/station/:sn/guard {mode}   AWAY | HOME | DISARMED | ...
 //   GET  /api/device/:sn/properties      diagnostics: library properties of a device
+//   POST /api/device/:sn/property {name,value}   write a camera property (P2P)
+//   POST /api/station/:sn/property {name,value}  write a HomeBase property (P2P)
 //   GET  /api/station/:sn/events?hours=  diagnostics: local event records (HomeBase database)
 //   POST /api/simulator/:sn/event        simulator only: trigger an event
 
@@ -164,11 +166,21 @@ export function createApi({ state, connector, credentials, simulator = null, tok
     },
 
     "POST station": async ({ req, res, id, action }) => {
-      if (action !== "guard") return send(res, 404, { error: "not found" });
       if (!state.stations[id]) return send(res, 404, { error: "unknown station" });
       const body = await readJson(req);
-      await connector.setGuardMode(id, body.mode);
-      return send(res, 202, { ok: true });
+      if (action === "guard") {
+        await connector.setGuardMode(id, body.mode);
+        return send(res, 202, { ok: true });
+      }
+      if (action === "property") return send(res, 200, await connector.setProperty("station", id, body.name, body.value));
+      return send(res, 404, { error: "not found" });
+    },
+
+    "POST device": async ({ req, res, id, action }) => {
+      if (action !== "property") return send(res, 404, { error: "not found" });
+      if (!state.cameras[id]) return send(res, 404, { error: "unknown camera" });
+      const body = await readJson(req);
+      return send(res, 200, await connector.setProperty("device", id, body.name, body.value));
     },
 
     "POST simulator": ({ res, id }) => {

@@ -144,6 +144,16 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
 
     setCameraMaxLivestreamDuration() {}
 
+    async setDeviceProperty(sn, name, value) {
+      const device = devices.find((d) => d.getSerial() === sn);
+      if (!device) throw new Error(`unknown device ${sn}`);
+      if (!device.getPropertiesMetadata()[name]?.writeable) throw new Error(`property ${name} is read only or unknown`);
+      setTimeout(() => {
+        this.emit("station command result", station, { command_type: 1, channel: 0, return_code: 0 });
+        this.emit("device property changed", device, name, value);
+      }, 5);
+    }
+
     async getDevice(sn) {
       const device = devices.find((d) => d.getSerial() === sn);
       if (!device) throw new Error(`unknown device ${sn}`);
@@ -182,9 +192,14 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     }
 
     async setStationProperty(sn, name, value) {
-      if (sn !== SIM_STATION || name !== PropertyName.StationGuardMode) throw new Error("not supported");
-      station.guard = value;
-      setTimeout(() => this.emit("station guard mode", station, value), 5);
+      if (sn !== SIM_STATION) throw new Error("not supported");
+      if (name === PropertyName.StationGuardMode) {
+        station.guard = value;
+        setTimeout(() => this.emit("station guard mode", station, value), 5);
+        return;
+      }
+      if (name !== "alarmVolume") throw new Error(`property ${name} is read only or unknown`);
+      setTimeout(() => this.emit("station command result", station, { command_type: 1, channel: 255, return_code: 0 }), 5);
     }
 
     async startStationLivestream(sn) {

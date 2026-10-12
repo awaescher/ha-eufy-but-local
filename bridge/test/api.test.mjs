@@ -280,6 +280,19 @@ describe("bridge API (simulated HomeBase)", () => {
     assert.equal((await b.api("/api/station/NOPE/events")).status, 404);
   });
 
+  it("writes camera and HomeBase properties and reports the HomeBase's answer", async () => {
+    const post = (path, body) => b.api(path, { method: "POST", body: JSON.stringify(body) });
+    const set = await post(`/api/device/${CAM}/property`, { name: "motionDetection", value: false });
+    assert.equal(set.status, 200);
+    const result = await set.json();
+    assert.equal(result.returnCode, 0);
+    assert.ok(result.ms >= 0);
+    assert.equal((await post(`/api/device/${CAM}/property`, { name: "battery", value: 1 })).status, 400);
+    assert.equal((await post("/api/device/UNKNOWN/property", { name: "motionDetection", value: true })).status, 404);
+    const station = await post(`/api/station/${SIM_STATION}/property`, { name: "alarmVolume", value: 5 });
+    assert.equal((await station.json()).returnCode, 0);
+  });
+
   it("rejects streams for unknown cameras", async () => {
     assert.equal((await b.api("/api/stream/UNKNOWN")).status, 404);
   });
