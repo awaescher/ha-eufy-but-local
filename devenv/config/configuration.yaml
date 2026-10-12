@@ -1,0 +1,8 @@
+# Minimal Home Assistant configuration for development. Runtime files next to this one are
+# git-ignored.
+default_config:
+
+logger:
+  default: info
+  logs:
+    custom_components.eufy_local: debug

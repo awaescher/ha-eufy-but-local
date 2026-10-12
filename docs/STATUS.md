@@ -22,13 +22,25 @@ Not yet verified on hardware:
 - Behaviour without internet (see `offline-test-plan.md`).
 - The bridge and integration in this repository as a whole (only the prototype ran).
 
+## Verified against the simulator in a real Home Assistant (2026.10.1, `devenv/`)
+
+- Config flow: bridge -> Eufy login -> 2FA code -> entry with HomeBase and three cameras.
+- Simulated local event: event entity fires, "Event (local)" turns on, stored-events counter
+  and last-event image update.
+- Live view in the browser via HLS (`stream` component). go2rtc reads the raw H.264 source and
+  decodes frames; a WebRTC session could not be tested under Docker Desktop (see
+  `devenv/README.md`).
+- Guard mode: arming away from HA sets `AWAY` on the bridge.
+- Bridge loses its login: HA shows the integration as needing reconfiguration; logging in again
+  from the UI restores all entities.
+
 ## Automated tests
 
 | Suite | Result | Notes |
 |---|---|---|
 | `bridge`: `npm test` | 42 passing | ~97 % line coverage (node built-in coverage) |
-| `tests/test_config_flow.py` | 12 passing | |
-| `tests/test_init.py` | 6 passing | |
+| `tests/test_config_flow.py` | 16 passing | |
+| `tests/test_init.py` | 8 passing | |
 | `tests/test_entities.py` | 15 passing | |
 | `tests/test_api.py` | 12 passing | `BridgeClient`: SSE parsing, error mapping (100 % of `api.py`) |
 
@@ -40,11 +52,9 @@ Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line cove
 1. Verify HA's built-in go2rtc (WebRTC) with the raw H.264 source. The `stream` component
    (HLS) works against the simulator once the camera sets `use_wallclock_as_timestamps`
    (ADR 0006, `devenv/stream_probe.py`). If go2rtc fails, serve MPEG-TS or fMP4 instead.
-2. Dev environment: `devenv/docker-compose.yml` with Home Assistant (custom component
-   mounted) and the bridge in simulator mode, plus a short `devenv/README.md`.
-3. CI (GitHub Actions): `hassfest`, HACS validation, `pytest`, `npm test`, `ruff`.
-4. Publish the bridge image (GHCR, multi-arch amd64/arm64).
-5. Real-hardware validation of everything listed above, then update this file and the README.
+2. CI (GitHub Actions): `hassfest`, HACS validation, `pytest`, `npm test`, `ruff`.
+3. Publish the bridge image (GHCR, multi-arch amd64/arm64).
+4. Real-hardware validation of everything listed above, then update this file and the README.
 
 ## Known risks
 

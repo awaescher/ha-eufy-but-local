@@ -1,0 +1,26 @@
+# Development environment: Home Assistant with this integration mounted, and the bridge
+# with a simulated HomeBase. No Eufy account or hardware needed. See README.md.
+name: eufy-local-dev
+
+services:
+  bridge:
+    build: ../bridge
+    environment:
+      EUFY_SIMULATOR: "1"
+      BRIDGE_TOKEN: "dev-token"
+      DATA_DIR: "/data"
+    tmpfs:
+      - /data:uid=1000,gid=1000
+    ports:
+      - "3080:3080"
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.10.1
+    depends_on: [bridge]
+    environment:
+      TZ: "Europe/Berlin"
+    volumes:
+      - ./config:/config
+      - ../custom_components:/config/custom_components:ro
+    ports:
+      - "8123:8123"
