@@ -59,8 +59,9 @@ Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line cove
 
 ## Known risks
 
-- `eufy-security-client` (bropat) warns that Eufy is shutting down the legacy APIs it uses;
-  the maintainer calls the current release a stopgap. Login may break at any time. The local
+- `eufy-security-client` (bropat) is archived (2026-09-12) and deprecated on npm; the author
+  points to mega-yfue/eufy-sdk. Eufy is shutting down the legacy APIs it uses, so login may
+  break at any time. The first hardware test shows whether 3.8.0 still logs in today. The local
   part (P2P, database, thumbnails) is less affected. Migration path: ADR 0010.
 - `eufy-security-ws` (the container used by the old fuatakgun integration) stopped finding
   devices in September 2026 according to the German HA community, attributed to Eufy's
