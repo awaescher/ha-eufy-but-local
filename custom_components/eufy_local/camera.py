@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from homeassistant.components.camera import Camera, CameraEntityFeature
+from homeassistant.components.stream import CONF_USE_WALLCLOCK_AS_TIMESTAMPS
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -29,6 +30,9 @@ class EufyLocalCamera(EufyCameraEntity, Camera):
     def __init__(self, coordinator: EufyLocalCoordinator, device_sn: str) -> None:
         EufyCameraEntity.__init__(self, coordinator, device_sn, "camera")
         Camera.__init__(self)
+        # Raw Annex-B carries no timestamps; without this the stream worker gives up with
+        # "No dts in 7 consecutive packets". Arrival time is the right clock for live P2P.
+        self.stream_options[CONF_USE_WALLCLOCK_AS_TIMESTAMPS] = True
         self._image: bytes | None = None
         self._image_at: str | None = None
 

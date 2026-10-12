@@ -1,6 +1,6 @@
 # ADR 0006: Livestream as raw H.264 over HTTP, on demand
 
-Status: accepted, needs verification (2026-10-13)
+Status: accepted; `stream` component verified against the simulator, go2rtc open (2026-10-13)
 
 ## Context
 
@@ -17,7 +17,12 @@ to all viewers; late viewers receive a GOP cache starting at the last SPS; the s
 
 ## Consequences / open question
 
-- Must be verified that both PyAV and HA's go2rtc probe raw Annex-B over HTTP reliably.
-  Fallback: remux to MPEG-TS or fMP4 in the bridge (ffmpeg or a small muxer), or bundle go2rtc.
+- HA's `stream` component (PyAV) detects raw Annex-B over HTTP as `h264`, but the packets have
+  no timestamps and the worker aborts ("No dts in 7 consecutive packets"). The camera entity
+  therefore sets the stream option `use_wallclock_as_timestamps`; with it, HA's real stream
+  worker produces regular 2 s HLS segments from the simulator stream
+  (`devenv/stream_probe.py`). Arrival time is an acceptable clock for a live P2P feed.
+- Still open: HA's built-in go2rtc (WebRTC) with this source, and both paths on real hardware.
+  Fallback if go2rtc fails: remux to MPEG-TS or fMP4 in the bridge, or bundle go2rtc.
 - H.265 cameras would need transcoding; the tested models report H.264 (prototype metadata).
 - Verified in tests: late viewers start exactly at an SPS; streams stop after the idle period.

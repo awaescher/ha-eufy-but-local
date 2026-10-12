@@ -29,7 +29,7 @@ Not yet verified on hardware:
 | `bridge`: `npm test` | 42 passing | ~97 % line coverage (node built-in coverage) |
 | `tests/test_config_flow.py` | 12 passing | |
 | `tests/test_init.py` | 6 passing | |
-| `tests/test_entities.py` | 14 passing | |
+| `tests/test_entities.py` | 15 passing | |
 | `tests/test_api.py` | 12 passing | `BridgeClient`: SSE parsing, error mapping (100 % of `api.py`) |
 
 Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line coverage.
@@ -37,9 +37,9 @@ Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line cove
 
 ## Open work, in priority order
 
-1. Verify that Home Assistant can play `stream_source()` (raw H.264 over HTTP) with both the
-   `stream` component (PyAV) and the built-in go2rtc. If either cannot probe raw Annex-B,
-   have the bridge serve MPEG-TS or fMP4 instead (ADR 0006).
+1. Verify HA's built-in go2rtc (WebRTC) with the raw H.264 source. The `stream` component
+   (HLS) works against the simulator once the camera sets `use_wallclock_as_timestamps`
+   (ADR 0006, `devenv/stream_probe.py`). If go2rtc fails, serve MPEG-TS or fMP4 instead.
 2. Dev environment: `devenv/docker-compose.yml` with Home Assistant (custom component
    mounted) and the bridge in simulator mode, plus a short `devenv/README.md`.
 3. CI (GitHub Actions): `hassfest`, HACS validation, `pytest`, `npm test`, `ruff`.
