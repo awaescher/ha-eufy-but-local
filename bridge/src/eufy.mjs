@@ -26,6 +26,8 @@ export class EufyConnector {
     this.lib = lib;
     this.log = log;
     this.client = null;
+    this.openPush = null;
+    this.state.setCloudPush(Boolean(config.cloudPush));
     this.pending = null; // "tfa" | { captchaId }
     this.captcha = null; // data URI
     this.stations = new Map();
@@ -102,12 +104,38 @@ export class EufyConnector {
       return;
     }
     this.client.setCameraMaxLivestreamDuration(this.config.liveMaxSeconds);
+    this.#limitCloud(this.client);
     this.#wire(this.client);
     try {
       await this.client.connect();
     } catch (err) {
       this.state.setPhase("error", err.message);
     }
+  }
+
+  /**
+   * eufy-security-client opens FCM push and Eufy's MQTT after every login and has no option
+   * to skip them. MQTT only serves locks and appliances, so it never starts; push starts only
+   * while the user enabled it (AGENTS.md rule 0).
+   */
+  #limitCloud(client) {
+    if (client.mqttService) client.mqttService.connect = () => {};
+    if (typeof client.registerPushNotifications !== "function") return;
+    const register = client.registerPushNotifications.bind(client);
+    this.openPush = () => register(client.persistentData?.push_credentials, client.persistentData?.push_persistentIds);
+    client.registerPushNotifications = async (...args) => {
+      if (this.state.cloudPush) await register(...args);
+    };
+  }
+
+  /** Switches the cloud push channel (person/motion notifications) on or off at runtime. */
+  async setCloudPush(enabled) {
+    const changed = enabled !== this.state.cloudPush;
+    this.state.setCloudPush(enabled);
+    if (!changed || !this.client || this.state.phase !== "ok") return;
+    if (enabled) await this.openPush?.();
+    else this.client.pushService?.close();
+    this.log("cloud", `push notifications ${enabled ? "enabled" : "disabled"}`);
   }
 
   async submitCode(code) {
@@ -335,14 +363,14 @@ export class EufyConnector {
       if (name === PropertyName.DeviceBattery && s.cameras[d.getSerial()]) s.upsertCamera(d.getSerial(), { battery: value });
     });
 
-    // --- cloud push (supplementary: tells person vs. motion)
+    // --- cloud push (optional, off by default: tells person vs. motion)
     c.on("device person detected", (d, on) => {
-      if (!on || !s.cameras[d.getSerial()]) return;
+      if (!on || !s.cloudPush || !s.cameras[d.getSerial()]) return;
       s.upsertCamera(d.getSerial(), { personAt: new Date().toISOString() });
       s.publish({ type: "person", device_sn: d.getSerial(), source: "cloud" });
     });
     c.on("device motion detected", (d, on) => {
-      if (!on || !s.cameras[d.getSerial()]) return;
+      if (!on || !s.cloudPush || !s.cameras[d.getSerial()]) return;
       s.upsertCamera(d.getSerial(), { motionAt: new Date().toISOString() });
       s.publish({ type: "motion", device_sn: d.getSerial(), source: "cloud" });
     });

@@ -17,7 +17,14 @@ const tick = () => new Promise((r) => setImmediate(r));
 function setup({ initialize } = {}) {
   const clients = [];
   class FakeClient extends EventEmitter {
-    constructor(cfg) { super(); this.cfg = cfg; this.connectCalls = []; this.closed = false; }
+    constructor(cfg) {
+      super(); this.cfg = cfg; this.connectCalls = []; this.closed = false; this.calls = [];
+      // The parts of eufy-security-client that reach Eufy's cloud after login.
+      this.mqttService = { connect: () => this.calls.push("mqtt") };
+      this.pushService = { close: () => this.calls.push("push close") };
+      this.persistentData = {};
+    }
+    async registerPushNotifications() { this.calls.push("push open"); }
     static async initialize(cfg) {
       if (initialize) await initialize(cfg);
       const c = new FakeClient(cfg);
@@ -150,6 +157,24 @@ describe("EufyConnector", () => {
     clients[0].getStation = async () => st;
     const result = await connector.stationEvents("S1", new Date(0), new Date(), 500);
     assert.deepEqual(result, { query: "byDate", returnCode: 0, records: [{ record_id: 7 }], localReturnCode: 0 });
+  });
+
+  it("never starts Eufy's MQTT and opens push only while enabled", async () => {
+    const { connector, clients } = setup();
+    await connector.start({ email: "a", password: "b" });
+    const c = clients[0];
+    // What the library does after every login:
+    c.mqttService.connect("id", "android", "api", "mail");
+    await c.registerPushNotifications(undefined, undefined);
+    assert.deepEqual(c.calls, [], "neither MQTT nor push opened while push is off");
+
+    connector.state.setPhase("ok");
+    await connector.setCloudPush(true);
+    assert.deepEqual(c.calls, ["push open"]);
+    await connector.setCloudPush(true); // no change, no second open
+    await connector.setCloudPush(false);
+    assert.deepEqual(c.calls, ["push open", "push close"]);
+    assert.equal(connector.state.cloudPush, false);
   });
 
   it("translates guard modes and rejects unknown ones", async () => {

@@ -185,3 +185,15 @@ async def test_urls(session: aiohttp.ClientSession) -> None:
     assert with_token.stream_url("CAM") == "http://192.168.1.10:3080/api/stream/CAM.ts?token=tok"
     assert without.stream_url("CAM") == "http://192.168.1.10:3080/api/stream/CAM.ts"
     assert with_token.captcha_url() == "http://192.168.1.10:3080/api/captcha?token=tok"
+
+
+async def test_set_config_posts_cloud_push(raw: RawServer, client) -> None:
+    bodies = []
+
+    async def config(request: web.Request) -> web.Response:
+        bodies.append(await request.json())
+        return web.json_response({"cloudPush": True})
+
+    raw.route("POST", "/api/config", config)
+    await (await client()).set_config(cloud_push=True)
+    assert bodies == [{"cloudPush": True}]

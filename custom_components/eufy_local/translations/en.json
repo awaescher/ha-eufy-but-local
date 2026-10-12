@@ -105,5 +105,16 @@
         }
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "description": "**Cloud push – off by default**\n\nWithout it, everything this integration offers runs locally: live view with audio, new recordings as events, event images, guard mode and camera settings go directly between the bridge and the HomeBase in your network. Only the Eufy login uses the internet.\n\nWith cloud push on, the bridge also keeps a permanent connection to Google Firebase to receive Eufy's notifications. Advantage: events that tell a **person** apart from general **motion** (\"Person (cloud)\", \"Motion (cloud)\"); the HomeBase does not report this locally. Disadvantages: a permanent cloud connection, and these events stop during an internet or Eufy outage. Local events keep working either way.",
+        "data": {
+          "cloud_push": "Cloud push for person/motion events"
+        }
+      }
+    }
   }
 }

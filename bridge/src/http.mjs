@@ -8,6 +8,7 @@
 //   GET  /api/captcha                    captcha image (while requested)
 //   GET  /api/image/:sn                  latest event thumbnail (local)
 //   GET  /api/stream/:sn[.ts|.h264]      livestream (starts camera): MPEG-TS with audio, or raw H.264
+//   POST /api/config {cloudPush}         switch optional cloud features (off by default)
 //   POST /api/station/:sn/guard {mode}   AWAY | HOME | DISARMED | ...
 //   GET  /api/device/:sn/properties      diagnostics: library properties of a device
 //   GET  /api/station/:sn/events?hours=  diagnostics: local event records (HomeBase database)
@@ -153,6 +154,13 @@ export function createApi({ state, connector, credentials, simulator = null, tok
       if (!Number.isFinite(hours) || hours <= 0 || hours > 24 * 31) return send(res, 400, { error: "hours: 1..744" });
       const end = new Date();
       return send(res, 200, await connector.stationEvents(id, new Date(end - hours * 3_600_000), end));
+    },
+
+    "POST config": async ({ req, res }) => {
+      const body = await readJson(req);
+      if (typeof body.cloudPush !== "boolean") throw new RangeError("cloudPush must be true or false");
+      await connector.setCloudPush(body.cloudPush);
+      return send(res, 200, { cloudPush: state.cloudPush });
     },
 
     "POST station": async ({ req, res, id, action }) => {

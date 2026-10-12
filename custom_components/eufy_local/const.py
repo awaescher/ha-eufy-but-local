@@ -10,6 +10,8 @@ MANUFACTURER: Final = "eufy"
 CONF_TOKEN: Final = "token"
 CONF_COUNTRY: Final = "country"
 CONF_CODE: Final = "code"
+# Option: receive Eufy's cloud push (person/motion). Off by default, see AGENTS.md rule 0.
+CONF_CLOUD_PUSH: Final = "cloud_push"
 
 DEFAULT_PORT: Final = 3080
 

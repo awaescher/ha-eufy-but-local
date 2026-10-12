@@ -87,6 +87,9 @@ class BridgeClient:
     async def submit_code(self, code: str) -> None:
         await self._request("POST", "/api/code", {"code": code})
 
+    async def set_config(self, *, cloud_push: bool) -> None:
+        await self._request("POST", "/api/config", {"cloudPush": cloud_push})
+
     async def set_guard_mode(self, station_sn: str, mode: str) -> None:
         await self._request("POST", f"/api/station/{station_sn}/guard", {"mode": mode})
 

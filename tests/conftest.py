@@ -68,6 +68,8 @@ class FakeBridge:
         self.logins: list[dict[str, Any]] = []
         self.codes: list[str] = []
         self.guard_requests: list[tuple[str, str]] = []
+        self.config_requests: list[dict[str, Any]] = []
+        self.reject_config = False
         self.images: dict[str, bytes] = {CAM: JPEG}
         self.image_requests = 0
         self.reject_guard = False
@@ -159,6 +161,14 @@ class FakeBridge:
             self.state.update(phase="error", message="wrong code")
         return web.json_response({"ok": True}, status=202)
 
+    async def _config(self, request: web.Request) -> web.Response:
+        if self.reject_config:
+            return web.json_response({"error": "not found"}, status=404)
+        body = await request.json()
+        self.config_requests.append(body)
+        self.state["cloudPush"] = body["cloudPush"]
+        return web.json_response({"cloudPush": body["cloudPush"]})
+
     async def _image(self, request: web.Request) -> web.Response:
         self.image_requests += 1
         data = self.images.get(request.match_info["sn"])
@@ -185,6 +195,7 @@ class FakeBridge:
         app.router.add_post("/api/code", self._code)
         app.router.add_get("/api/image/{sn}", self._image)
         app.router.add_post("/api/station/{sn}/guard", self._guard)
+        app.router.add_post("/api/config", self._config)
         self.server = TestServer(app, host="127.0.0.1", port=port)
         await self.server.start_server()
 
