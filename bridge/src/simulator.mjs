@@ -97,6 +97,12 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
         }));
       setTimeout(() => instance?.emit("station database query local", station, 0, records), 5);
     },
+    databaseQueryByDate(serials, start, end) {
+      const records = cameras
+        .filter((c) => serials.includes(c.sn))
+        .map((c, i) => ({ record_id: 2000 + i, station_sn: SIM_STATION, device_sn: c.sn, start_time: end, end_time: end, trigger_type: 1, storage_path: `/media/${c.sn}/${c.count}.dat`, thumb_path: `/media/${c.sn}/${c.count}.jpg` }));
+      setTimeout(() => instance?.emit("station database query by date", station, 0, records), 5);
+    },
     downloadImage(path) {
       const sn = path.split("/")[2];
       setTimeout(() => instance?.emit("station image download", station, path, { data: images[sn], type: imageType(sn) }), 10);

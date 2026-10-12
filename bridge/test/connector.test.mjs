@@ -129,7 +129,7 @@ describe("EufyConnector", () => {
   it("gives up on a database query the HomeBase does not answer, ignoring other stations", async () => {
     const { connector, clients } = setup();
     await connector.start({ email: "a", password: "b" });
-    const st = { ...station("S1"), databaseQueryLocal() { this.asked = true; } };
+    const st = { ...station("S1"), databaseQueryLocal() { this.asked = true; }, databaseQueryByDate() {} };
     clients[0].getStation = async () => st;
     const pending = connector.stationEvents("S1", new Date(0), new Date(), 30);
     await tick();
@@ -137,6 +137,19 @@ describe("EufyConnector", () => {
     await assert.rejects(pending, /did not answer/);
     assert.equal(st.asked, true);
     assert.equal(clients[0].listenerCount("station database query local"), 0, "listener removed");
+  });
+
+  it("falls back to the by-date query when the local query returns nothing", async () => {
+    const { connector, clients } = setup();
+    await connector.start({ email: "a", password: "b" });
+    const st = {
+      ...station("S1"),
+      databaseQueryLocal() { setImmediate(() => clients[0].emit("station database query local", st, 0, [])); },
+      databaseQueryByDate() { setImmediate(() => clients[0].emit("station database query by date", st, 0, [{ record_id: 7 }])); },
+    };
+    clients[0].getStation = async () => st;
+    const result = await connector.stationEvents("S1", new Date(0), new Date(), 500);
+    assert.deepEqual(result, { query: "byDate", returnCode: 0, records: [{ record_id: 7 }], localReturnCode: 0 });
   });
 
   it("translates guard modes and rejects unknown ones", async () => {

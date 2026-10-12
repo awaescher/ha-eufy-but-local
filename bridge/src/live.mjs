@@ -13,6 +13,19 @@
 import { findSpsOffset } from "./h264.mjs";
 
 const GOP_CACHE_MAX_BYTES = 4 * 1024 * 1024;
+const ADTS_SAMPLE_RATES = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+// The audio clock follows the sample count; if it drifts this far from arrival time (gaps,
+// bursts), it is re-anchored.
+const AUDIO_RESYNC_MS = 500;
+
+/** Duration of an ADTS frame in ms, or null if `chunk` has no ADTS header. */
+export function adtsDurationMs(chunk) {
+  if (chunk.length < 7 || chunk[0] !== 0xff || (chunk[1] & 0xf6) !== 0xf0) return null;
+  const rate = ADTS_SAMPLE_RATES[(chunk[2] >> 2) & 0x0f];
+  if (!rate) return null;
+  const blocks = (chunk[6] & 0x03) + 1;
+  return (blocks * 1024 * 1000) / rate;
+}
 // Home Assistant stops an unwatched stream after 30 s (stream OUTPUT_IDLE_TIMEOUT).
 const SWITCH_COOLDOWN_MS = 30_000;
 
@@ -125,9 +138,13 @@ export class LiveStreams {
   }
 
   /** Called when the camera actually started streaming. */
-  started(sn, { audio = false } = {}) {
+  started(sn, { audio = false, fps = 15 } = {}) {
     const s = this.#get(sn);
     s.audio = audio;
+    // P2P delivers frames in bursts; timestamps must still advance for every frame.
+    s.minVideoStepMs = 500 / (fps > 0 ? fps : 15);
+    s.lastVideoAt = null;
+    s.lastAudioAt = null;
     s.running = true;
     s.starting = false;
     s.gop = [];
@@ -137,16 +154,28 @@ export class LiveStreams {
 
   /** Feeds one frame of raw H.264 (Annex-B) to all viewers and the GOP cache. */
   feed(sn, chunk) {
+    const s = this.streams.get(sn);
+    if (!s) return;
+    const now = this.now();
+    const at = s.lastVideoAt === null ? now : Math.max(now, s.lastVideoAt + s.minVideoStepMs);
+    s.lastVideoAt = at;
     const sps = findSpsOffset(chunk);
     const unit = sps >= 0
-      ? { kind: "video", data: chunk.subarray(sps), at: this.now(), keyframe: true }
-      : { kind: "video", data: chunk, at: this.now(), keyframe: false };
+      ? { kind: "video", data: chunk.subarray(sps), at, keyframe: true }
+      : { kind: "video", data: chunk, at, keyframe: false };
     this.#deliver(sn, unit);
   }
 
   /** Feeds one AAC frame (ADTS) to all viewers and the GOP cache. */
   feedAudio(sn, chunk) {
-    this.#deliver(sn, { kind: "audio", data: chunk, at: this.now() });
+    const s = this.streams.get(sn);
+    if (!s) return;
+    const now = this.now();
+    const frameMs = adtsDurationMs(chunk) ?? 64;
+    let at = s.lastAudioAt === null ? now : s.lastAudioAt + frameMs;
+    if (Math.abs(at - now) > AUDIO_RESYNC_MS) at = Math.max(now, (s.lastAudioAt ?? -Infinity) + frameMs);
+    s.lastAudioAt = at;
+    this.#deliver(sn, { kind: "audio", data: chunk, at });
   }
 
   #deliver(sn, unit) {

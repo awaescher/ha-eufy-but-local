@@ -8,7 +8,7 @@ import { readConfig } from "../src/config.mjs";
 import { CredentialStore } from "../src/credentials.mjs";
 import { findSpsOffset } from "../src/h264.mjs";
 import { ImageStore } from "../src/images.mjs";
-import { LiveStreams } from "../src/live.mjs";
+import { LiveStreams, adtsDurationMs } from "../src/live.mjs";
 import { splitFrames } from "../src/simulator.mjs";
 import { BridgeState } from "../src/state.mjs";
 
@@ -257,6 +257,31 @@ describe("LiveStreams", () => {
     assert.equal(first.ended, false);
     assert.deepEqual(calls.stop, []);
     assert.equal(live.admits("C1"), true);
+  });
+
+  it("keeps timestamps advancing when P2P delivers frames in bursts", async () => {
+    let t = 1000;
+    const { live } = make({ now: () => t });
+    const v = new Sink();
+    await live.addViewer("C1", v);
+    live.started("C1", { audio: true, fps: 10 });
+    const ADTS = Buffer.from([0xff, 0xf1, 0x60, 0x40, 0x18, 0x02, 0x40, 0, 0]); // 16 kHz, 1 block: 64 ms
+    // Three video and three audio frames arrive in the same millisecond.
+    for (let i = 0; i < 3; i++) live.feed("C1", i === 0 ? Buffer.concat([SPS4, PFRAME]) : PFRAME);
+    for (let i = 0; i < 3; i++) live.feedAudio("C1", ADTS);
+    const at = (kind) => v.units.filter((u) => u.kind === kind).map((u) => u.at);
+    assert.deepEqual(at("video"), [1000, 1050, 1100], "at least half a frame interval apart");
+    assert.deepEqual(at("audio"), [1000, 1064, 1128], "audio follows its sample count");
+
+    // After a long gap the audio clock re-anchors to arrival time instead of lagging behind.
+    t = 5000;
+    live.feedAudio("C1", ADTS);
+    assert.equal(at("audio").at(-1), 5000);
+  });
+
+  it("reads the duration of an ADTS frame", () => {
+    assert.equal(adtsDurationMs(Buffer.from([0xff, 0xf1, 0x60, 0x40, 0x18, 0x02, 0x40])), 64);
+    assert.equal(adtsDurationMs(Buffer.from([1, 2, 3, 4, 5, 6, 7])), null);
   });
 
   it("cleans up when starting fails", async () => {

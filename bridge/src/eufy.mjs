@@ -132,8 +132,9 @@ export class EufyConnector {
   }
 
   /**
-   * Recordings in the HomeBase database (P2P, local) between `start` and `end`; the station
-   * answers with at most 20 records per query.
+   * Recordings in the HomeBase database (P2P, local) between `start` and `end`. Tries
+   * `databaseQueryLocal` (at most 20 records, with detection details) and falls back to the
+   * older `databaseQueryByDate` when that returns nothing.
    */
   async stationEvents(stationSn, start, end, timeoutMs = 15_000) {
     if (!this.client) throw new Error("Not connected");
@@ -141,11 +142,22 @@ export class EufyConnector {
     const serials = Object.entries(this.state.cameras)
       .filter(([, cam]) => cam.station === stationSn)
       .map(([sn]) => sn);
+    const local = await this.#query(stationSn, "station database query local", timeoutMs, () =>
+      station.databaseQueryLocal(serials, start, end),
+    );
+    if (local.records?.length) return { query: "local", ...local };
+    const byDate = await this.#query(stationSn, "station database query by date", timeoutMs, () =>
+      station.databaseQueryByDate(serials, start, end),
+    );
+    return { query: "byDate", ...byDate, localReturnCode: local.returnCode };
+  }
+
+  #query(stationSn, eventName, timeoutMs, send) {
     return new Promise((resolve, reject) => {
       const client = this.client;
       const done = () => {
         clearTimeout(timer);
-        client.removeListener("station database query local", onAnswer);
+        client.removeListener(eventName, onAnswer);
       };
       const onAnswer = (st, returnCode, records) => {
         if (st.getSerial() !== stationSn) return;
@@ -156,8 +168,8 @@ export class EufyConnector {
         done();
         reject(new Error("the HomeBase did not answer the database query"));
       }, timeoutMs);
-      client.on("station database query local", onAnswer);
-      station.databaseQueryLocal(serials, start, end);
+      client.on(eventName, onAnswer);
+      send();
     });
   }
 
@@ -299,7 +311,7 @@ export class EufyConnector {
       // AudioCodec: 1 AAC, 2 AAC_LC, 3 AAC_ELD; 0 none, -1 unknown.
       const hasAudio = [1, 2, 3].includes(meta.audioCodec) && Boolean(audio);
       s.upsertCamera(sn, { codec });
-      this.live.started(sn, { audio: hasAudio });
+      this.live.started(sn, { audio: hasAudio, fps: meta.videoFPS });
       this.log("local", `livestream ${device.getName()} running (${codec}, ${meta.videoWidth}x${meta.videoHeight}, ${hasAudio ? "with" : "no"} audio)`);
       video.on("data", (chunk) => this.live.feed(sn, chunk));
       video.on("end", () => this.live.ended(sn));

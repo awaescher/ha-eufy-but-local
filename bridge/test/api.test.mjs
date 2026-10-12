@@ -253,6 +253,7 @@ describe("bridge API (simulated HomeBase)", () => {
 
     const events = await (await b.api(`/api/station/${SIM_STATION}/events?hours=6`)).json();
     assert.equal(events.returnCode, 0);
+    assert.equal(events.query, "local");
     assert.deepEqual(events.records.map((r) => r.device_sn).sort(), SIM_CAMERAS.map((c) => c.sn).sort());
     assert.equal(events.records[0].picture[0].detection_type, 2);
     assert.equal((await b.api(`/api/station/${SIM_STATION}/events?hours=0`)).status, 400);
