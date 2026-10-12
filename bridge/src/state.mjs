@@ -12,6 +12,7 @@ export class BridgeState extends EventEmitter {
   constructor(version) {
     super();
     this.version = version;
+    this.cloudPush = false; // a setting, survives reset()
     this.reset();
   }
 
@@ -28,6 +29,11 @@ export class BridgeState extends EventEmitter {
     if (!PHASES.includes(phase)) throw new Error(`Unknown phase: ${phase}`);
     this.phase = phase;
     this.message = message;
+    this.emit("change");
+  }
+
+  setCloudPush(enabled) {
+    this.cloudPush = enabled;
     this.emit("change");
   }
 
@@ -60,6 +66,7 @@ export class BridgeState extends EventEmitter {
       phase: this.phase,
       message: this.message,
       cloud: this.cloud,
+      cloudPush: this.cloudPush,
       stations: this.stations,
       cameras: this.cameras,
     };

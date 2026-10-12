@@ -7,13 +7,20 @@ from collections.abc import Mapping
 import logging
 from typing import Any
 
-from homeassistant.config_entries import SOURCE_REAUTH, ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    SOURCE_REAUTH,
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_EMAIL, CONF_HOST, CONF_PASSWORD, CONF_PORT
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import voluptuous as vol
 
 from .api import BridgeAuthError, BridgeClient, BridgeError
-from .const import CONF_CODE, CONF_COUNTRY, CONF_TOKEN, DEFAULT_PORT, DOMAIN
+from .const import CONF_CLOUD_PUSH, CONF_CODE, CONF_COUNTRY, CONF_TOKEN, DEFAULT_PORT, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +35,11 @@ class EufyLocalConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for HALEC."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        return EufyLocalOptionsFlow()
 
     def __init__(self) -> None:
         self._client: BridgeClient | None = None
@@ -214,4 +226,17 @@ class EufyLocalConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reauth_confirm",
             data_schema=vol.Schema({vol.Required(CONF_TOKEN): str}),
             errors=errors,
+        )
+
+
+class EufyLocalOptionsFlow(OptionsFlow):
+    """Optional cloud features; all off by default."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+        schema = vol.Schema({vol.Required(CONF_CLOUD_PUSH, default=False): bool})
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(schema, self.config_entry.options),
         )

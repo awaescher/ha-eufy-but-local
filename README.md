@@ -15,11 +15,12 @@ Only tested with a **HomeBase 2 (T8010)** with **eufyCam 2C (T8113)** and **eufy
 
 Every existing integration receives motion/person events through Eufy's cloud push. This one
 reads them from the HomeBase's **local event database** over P2P inside your network and uses
-the cloud push only as an optional extra (to tell a person from generic motion).
+the cloud push only as an optional extra (to tell a person from generic motion), which is off
+by default and switched in the integration's options.
 
 | | Cloud-push integrations | This project |
 |---|---|---|
-| Events | Eufy cloud push | HomeBase event database (local), push optional |
+| Events | Eufy cloud push | HomeBase event database (local), push optional (off by default) |
 | Thumbnails | from the push | from the HomeBase (local) |
 | P2P | may relay through Eufy servers | LAN only |
 | Login / device list | cloud | cloud (same) |
@@ -47,7 +48,7 @@ decisions: [docs/adr/](docs/adr/README.md).
 | Thumbnails | no | not yet |
 | Live view | no | not yet |
 | Guard mode | no | not yet |
-| Person vs. motion | **yes** (cloud push) | not yet |
+| Person vs. motion | **yes** (cloud push, off by default) | not yet |
 | Keeps working during an internet outage | partly, see [offline test plan](docs/offline-test-plan.md) | not yet |
 
 ## Entities

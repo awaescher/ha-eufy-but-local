@@ -19,6 +19,8 @@ export function readConfig(env = process.env) {
     stationIp: env.HB_IP || "",
     stationSerial: env.HB_SN || "",
     simulator: ["1", "true", "yes"].includes(String(env.EUFY_SIMULATOR || "").toLowerCase()),
+    // Off by default (AGENTS.md rule 0); Home Assistant switches it in the integration options.
+    cloudPush: ["1", "true", "yes"].includes(String(env.EUFY_CLOUD_PUSH || "").toLowerCase()),
     // Credentials from the environment take precedence over the stored file.
     credentials:
       env.EUFY_EMAIL && env.EUFY_PASSWORD

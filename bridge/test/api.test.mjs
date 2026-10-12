@@ -152,7 +152,26 @@ describe("bridge API (simulated HomeBase)", () => {
     assert.deepEqual([width, height], [264, 200]);
   });
 
+  it("reports local recordings only while cloud push is off (the default)", async () => {
+    assert.equal(b.state.cloudPush, false);
+    const res = await b.api("/api/events");
+    await b.api(`/api/simulator/${CAM}/event`, { method: "POST" });
+    const events = await readEvents(res, (e) => e.name === "event" && e.data.type === "image");
+    const types = events.filter((e) => e.name === "event").map((e) => e.data.type);
+    assert.ok(types.includes("local_recording"));
+    assert.ok(!types.includes("person"), "no cloud event while push is off");
+    assert.equal(events.at(-1).data.device_sn, CAM);
+  });
+
+  it("switches cloud push through the config endpoint", async () => {
+    assert.equal((await b.api("/api/config", { method: "POST", body: JSON.stringify({ cloudPush: "yes" }) })).status, 400);
+    const res = await b.api("/api/config", { method: "POST", body: JSON.stringify({ cloudPush: true }) });
+    assert.deepEqual(await res.json(), { cloudPush: true });
+    assert.equal((await (await b.api("/api/state")).json()).cloudPush, true);
+  });
+
   it("reports a new local recording over SSE, then the cloud push", async () => {
+    await b.api("/api/config", { method: "POST", body: JSON.stringify({ cloudPush: true }) });
     const res = await b.api("/api/events");
     assert.equal(res.headers.get("content-type"), "text/event-stream");
     await b.api(`/api/simulator/${CAM}/event`, { method: "POST" });
@@ -162,6 +181,7 @@ describe("bridge API (simulated HomeBase)", () => {
     assert.ok(types.indexOf("local_recording") >= 0 && types.indexOf("local_recording") < types.indexOf("person"));
     assert.equal(events.find((e) => e.data.type === "local_recording").data.device_sn, CAM);
     assert.ok(b.state.cameras[CAM].lastEventAt);
+    await b.api("/api/config", { method: "POST", body: JSON.stringify({ cloudPush: false }) });
   });
 
   it("switches the guard mode", async () => {

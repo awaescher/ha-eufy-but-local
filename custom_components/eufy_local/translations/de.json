@@ -105,5 +105,16 @@
         }
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Optionen",
+        "description": "**Cloud-Push – standardmäßig aus**\n\nOhne Cloud-Push läuft alles, was diese Integration bietet, lokal: Livebild mit Ton, neue Aufnahmen als Ereignis, Ereignisbilder, Alarmmodus und Kamera-Einstellungen gehen direkt zwischen Brücke und HomeBase in deinem Netz. Nur die Eufy-Anmeldung nutzt das Internet.\n\nMit Cloud-Push hält die Brücke zusätzlich eine dauerhafte Verbindung zu Google Firebase, um Eufys Benachrichtigungen zu empfangen. Vorteil: Ereignisse, die eine **Person** von allgemeiner **Bewegung** unterscheiden („Person (Cloud)“, „Bewegung (Cloud)“); lokal meldet die HomeBase das nicht. Nachteile: eine dauerhafte Cloud-Verbindung, und diese Ereignisse fallen bei einem Internet- oder Eufy-Ausfall weg. Die lokalen Ereignisse funktionieren in beiden Fällen.",
+        "data": {
+          "cloud_push": "Cloud-Push für Person/Bewegung"
+        }
+      }
+    }
   }
 }

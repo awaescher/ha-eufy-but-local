@@ -14,7 +14,7 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.eufy_local.const import CONF_TOKEN, DOMAIN
+from custom_components.eufy_local.const import CONF_CLOUD_PUSH, CONF_TOKEN, DOMAIN
 from custom_components.eufy_local.diagnostics import async_get_config_entry_diagnostics
 
 from .conftest import CAM, STATION, FakeBridge, wait_for
@@ -133,3 +133,33 @@ async def test_lost_login_at_runtime_starts_reauth(
     await hass.async_block_till_done()
     flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
     assert [(f["context"]["source"], f["step_id"]) for f in flows] == [("reauth", "code")]
+
+
+async def test_setup_sends_cloud_push_off_by_default(
+    bridge: FakeBridge, setup_integration: MockConfigEntry
+) -> None:
+    assert bridge.config_requests == [{"cloudPush": False}]
+
+
+async def test_options_switch_cloud_push(
+    hass: HomeAssistant, bridge: FakeBridge, setup_integration: MockConfigEntry
+) -> None:
+    result = await hass.config_entries.options.async_init(setup_integration.entry_id)
+    assert result["step_id"] == "init"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_CLOUD_PUSH: True}
+    )
+    await hass.async_block_till_done()
+    assert setup_integration.options == {CONF_CLOUD_PUSH: True}
+    # The entry reloads and hands the new setting to the bridge.
+    assert bridge.config_requests[-1] == {"cloudPush": True}
+    assert setup_integration.state is ConfigEntryState.LOADED
+
+
+async def test_not_ready_when_bridge_rejects_the_configuration(
+    hass: HomeAssistant, bridge: FakeBridge, entry: MockConfigEntry
+) -> None:
+    bridge.reject_config = True  # e.g. a bridge too old to know /api/config
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY

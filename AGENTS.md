@@ -19,6 +19,16 @@ container has no Node runtime. See `docs/adr/0001-bridge-plus-integration.md`.
 
 ## Ground rules
 
+0. **Local first – hard rule, negotiable only with the maintainer.** Everything that can work
+   locally must work locally. The only accepted cloud use is the Eufy login and the device list
+   it returns (at bridge start and on re-login). Any other cloud dependency – push
+   notifications, cloud thumbnails, cloud event history, cloud polling, anything that keeps a
+   connection to Eufy's servers – must be:
+   - **off by default**,
+   - switchable by the user, with an explanation in the UI of what it does, what works with
+     and without it, and the trade-offs,
+   - agreed with the maintainer *before* it is implemented, and recorded in an ADR.
+   If a feature cannot be done locally, say so and ask; do not quietly fall back to the cloud.
 1. **Honesty about "local".** Never claim something works locally or offline unless it is
    verified on real hardware and recorded in `docs/STATUS.md`. The cloud is still required for
    login and the device list at bridge start.
@@ -97,6 +107,7 @@ docs/                   STATUS.md, architecture.md, offline-test-plan.md, adr/
 | GET | `/api/image/{sn}` | latest event thumbnail (JPEG) or 404 |
 | GET | `/api/stream/{sn}[.ts\|.h264]` | MPEG-TS (H.264 + AAC) or `.h264` raw video; first viewer wakes the camera; 409 while displaced by another camera of the station |
 | POST | `/api/station/{sn}/guard` | `{mode}`: `AWAY`, `HOME`, `DISARMED`, … |
+| POST | `/api/config` | `{cloudPush: bool}`; sent by the integration on every setup (ADR 0011) |
 | GET | `/api/device/{sn}/properties` | diagnostics: library property values, writable names, commands |
 | GET | `/api/station/{sn}/events?hours=24` | diagnostics: local event records from the HomeBase database (P2P) |
 | POST | `/api/simulator/{sn}/event` | simulator only |
@@ -107,7 +118,7 @@ Snapshot shape:
 
 ```json
 {
-  "version": "0.1.0", "phase": "ok", "message": "", "cloud": true,
+  "version": "0.1.0", "phase": "ok", "message": "", "cloud": true, "cloudPush": false,
   "stations": { "<sn>": { "name": "", "model": "T8010", "p2p": true, "guardMode": 1, "guardModeName": "HOME" } },
   "cameras": { "<sn>": { "name": "", "model": "T8113", "station": "<sn>", "battery": 87, "count": 120,
                          "lastEventAt": null, "imageAt": null, "live": false, "codec": null,
