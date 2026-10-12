@@ -1,1 +1,1 @@
-"""Tests for the Eufy HomeBase (local) integration."""
+"""Tests for the HALEC integration."""

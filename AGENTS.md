@@ -5,7 +5,7 @@ Read this file, then `docs/STATUS.md` (current state and open work), then the AD
 
 ## What this project is
 
-A Home Assistant integration for **Eufy HomeBase 2** that delivers events, thumbnails and the
+**HALEC – Home Assistant Local Eufy Cams** (HALEC): a Home Assistant integration for **Eufy HomeBase 2** that delivers events, thumbnails and the
 guard mode **locally** (LAN-only P2P), instead of relying on Eufy's cloud push like all other
 existing integrations. It consists of two parts:
 

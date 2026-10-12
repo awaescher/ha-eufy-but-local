@@ -9,7 +9,7 @@ docker compose up -d --build
 ```
 
 1. Open <http://127.0.0.1:8123> and create a user (onboarding).
-2. *Settings → Devices & services → Add integration → Eufy HomeBase (local)*:
+2. *Settings → Devices & services → Add integration → HALEC – Home Assistant Local Eufy Cams*:
    host `bridge`, port `3080`, token `dev-token`.
 3. Log in with any email and password, verification code `123456`.
 

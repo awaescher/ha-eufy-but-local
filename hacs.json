@@ -1,5 +1,5 @@
 {
-  "name": "Eufy HomeBase (local)",
+  "name": "HALEC – Home Assistant Local Eufy Cams",
   "homeassistant": "2026.10.0",
   "render_readme": true
 }

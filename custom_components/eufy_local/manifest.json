@@ -1,6 +1,6 @@
 {
   "domain": "eufy_local",
-  "name": "Eufy HomeBase (local)",
+  "name": "HALEC – Home Assistant Local Eufy Cams",
   "after_dependencies": [
     "stream"
   ],

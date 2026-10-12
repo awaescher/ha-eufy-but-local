@@ -1,7 +1,7 @@
-# Eufy HomeBase (local) for Home Assistant
+# HALEC – Home Assistant Local Eufy Cams
 
-Events, thumbnails, live view and guard mode for **Eufy HomeBase 2** cameras, delivered over a
-**LAN-only P2P connection** instead of Eufy's cloud push.
+**HALEC** brings events, thumbnails, live view and guard mode of **Eufy HomeBase 2** cameras to
+Home Assistant, delivered over a **LAN-only P2P connection** instead of Eufy's cloud push.
 
 > **Status: early development, not released.**
 > What is and is not verified on real hardware is tracked in [docs/STATUS.md](docs/STATUS.md).
@@ -94,7 +94,7 @@ Settings (environment variables):
 
 Add `https://github.com/awaescher/ha-local-eufy-cams` as a custom repository (type
 *Integration*) in HACS, install
-"Eufy HomeBase (local)", restart Home Assistant, then add the integration and enter the
+"HALEC – Home Assistant Local Eufy Cams", restart Home Assistant, then add the integration and enter the
 bridge host, port and token. If the bridge is not logged in yet, the flow asks for the Eufy
 account and the verification code.
 

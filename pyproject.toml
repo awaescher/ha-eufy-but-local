@@ -1,7 +1,7 @@
 [project]
 name = "ha-local-eufy-cams"
 version = "0.1.0"
-description = "Home Assistant integration for Eufy HomeBase 2 with local events, thumbnails and live view"
+description = "HALEC – Home Assistant Local Eufy Cams: Eufy HomeBase 2 integration with local events, thumbnails and live view"
 requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [{ name = "Andreas Wäscher" }]

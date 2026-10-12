@@ -25,7 +25,7 @@ FINAL_PHASES = ("ok", "tfa", "captcha", "error")
 
 
 class EufyLocalConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Eufy HomeBase (local)."""
+    """Handle a config flow for HALEC."""
 
     VERSION = 1
 
