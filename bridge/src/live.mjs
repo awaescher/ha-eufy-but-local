@@ -1,8 +1,9 @@
 // On-demand livestreams.
 //
 // The first viewer of a camera starts the P2P livestream (which wakes the camera),
-// the stream is stopped `idleMs` after the last viewer left. Late viewers receive
-// the cached GOP so they always begin with SPS/PPS + keyframe.
+// the stream is stopped `idleMs` after the last viewer left. Viewers receive units
+// `{ kind: "video" | "audio", data, at, keyframe }` (`at` = arrival time in ms); late
+// viewers get the cached GOP first, so they always begin with SPS/PPS + keyframe.
 //
 // A HomeBase streams one camera at a time. Starting another camera of the same station
 // displaces the running one; the displaced camera is then refused for a while, because
@@ -62,6 +63,11 @@ export class LiveStreams {
     return this.streams.get(sn)?.running ?? false;
   }
 
+  /** Whether the running stream of `sn` carries audio (known once it started). */
+  hasAudio(sn) {
+    return this.streams.get(sn)?.audio ?? false;
+  }
+
   viewerCount(sn) {
     return this.streams.get(sn)?.viewers.size ?? 0;
   }
@@ -72,14 +78,14 @@ export class LiveStreams {
     return at === undefined || this.now() - at >= this.switchCooldownMs;
   }
 
-  /** Registers a writable viewer; starts the camera if needed. */
+  /** Registers a viewer (`push(unit)`, `end()`); starts the camera if needed. */
   async addViewer(sn, viewer) {
     const s = this.#get(sn);
     clearTimeout(s.idleTimer);
     s.idleTimer = null;
     s.viewers.add(viewer);
     if (s.running) {
-      for (const chunk of s.gop) viewer.write(chunk);
+      for (const unit of s.gop) viewer.push(unit);
       return;
     }
     if (s.starting) return;
@@ -119,8 +125,9 @@ export class LiveStreams {
   }
 
   /** Called when the camera actually started streaming. */
-  started(sn) {
+  started(sn, { audio = false } = {}) {
     const s = this.#get(sn);
+    s.audio = audio;
     s.running = true;
     s.starting = false;
     s.gop = [];
@@ -128,20 +135,31 @@ export class LiveStreams {
     this.onChange(sn, true);
   }
 
-  /** Feeds a chunk of raw H.264 to all viewers and the GOP cache. */
+  /** Feeds one frame of raw H.264 (Annex-B) to all viewers and the GOP cache. */
   feed(sn, chunk) {
+    const sps = findSpsOffset(chunk);
+    const unit = sps >= 0
+      ? { kind: "video", data: chunk.subarray(sps), at: this.now(), keyframe: true }
+      : { kind: "video", data: chunk, at: this.now(), keyframe: false };
+    this.#deliver(sn, unit);
+  }
+
+  /** Feeds one AAC frame (ADTS) to all viewers and the GOP cache. */
+  feedAudio(sn, chunk) {
+    this.#deliver(sn, { kind: "audio", data: chunk, at: this.now() });
+  }
+
+  #deliver(sn, unit) {
     const s = this.streams.get(sn);
     if (!s) return;
-    const sps = findSpsOffset(chunk);
-    if (sps >= 0) {
-      const head = chunk.subarray(sps);
-      s.gop = [head];
-      s.gopBytes = head.length;
+    if (unit.keyframe) {
+      s.gop = [unit];
+      s.gopBytes = unit.data.length;
     } else if (s.gop.length > 0 && s.gopBytes < GOP_CACHE_MAX_BYTES) {
-      s.gop.push(chunk);
-      s.gopBytes += chunk.length;
+      s.gop.push(unit);
+      s.gopBytes += unit.data.length;
     }
-    for (const v of s.viewers) v.write(chunk);
+    for (const v of s.viewers) v.push(unit);
   }
 
   /** Called when the camera stopped streaming (for whatever reason). */

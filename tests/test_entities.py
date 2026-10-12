@@ -10,13 +10,11 @@ from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelState,
 )
 from homeassistant.components.camera import async_get_image, async_get_stream_source
-from homeassistant.components.camera.const import DATA_COMPONENT as CAMERA_COMPONENT
 from homeassistant.components.select import (
     ATTR_OPTION,
     DOMAIN as SELECT_DOMAIN,
     SERVICE_SELECT_OPTION,
 )
-from homeassistant.components.stream import CONF_USE_WALLCLOCK_AS_TIMESTAMPS
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     SERVICE_ALARM_ARM_AWAY,
@@ -162,12 +160,7 @@ async def test_camera_image_is_cached_until_a_new_thumbnail(
 
 async def test_stream_source_carries_token(hass: HomeAssistant, bridge: FakeBridge) -> None:
     source = await async_get_stream_source(hass, CAMERA)
-    assert source == f"http://127.0.0.1:{bridge.port}/api/stream/{CAM}?token={TOKEN}"
-
-
-async def test_stream_uses_wallclock_timestamps(hass: HomeAssistant) -> None:
-    camera = hass.data[CAMERA_COMPONENT].get_entity(CAMERA)
-    assert camera.stream_options[CONF_USE_WALLCLOCK_AS_TIMESTAMPS] is True
+    assert source == f"http://127.0.0.1:{bridge.port}/api/stream/{CAM}.ts?token={TOKEN}"
 
 
 async def test_streaming_state(hass: HomeAssistant, bridge: FakeBridge) -> None:

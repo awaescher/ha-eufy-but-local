@@ -100,7 +100,8 @@ class BridgeClient:
             return None
 
     def stream_url(self, device_sn: str) -> str:
-        return self.url(f"/api/stream/{device_sn}", with_token=True)
+        """MPEG-TS with video and audio, timestamped by the bridge."""
+        return self.url(f"/api/stream/{device_sn}.ts", with_token=True)
 
     def captcha_url(self) -> str:
         return self.url("/api/captcha", with_token=True)

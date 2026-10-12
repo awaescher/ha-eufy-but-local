@@ -251,14 +251,17 @@ export class EufyConnector {
     });
 
     // --- livestream
-    c.on("station livestream start", (_st, device, meta, video) => {
+    c.on("station livestream start", (_st, device, meta, video, audio) => {
       const sn = device.getSerial();
       const codec = meta.videoCodec === 0 ? "h264" : meta.videoCodec === 1 ? "h265" : "unknown";
+      // AudioCodec: 1 AAC, 2 AAC_LC, 3 AAC_ELD; 0 none, -1 unknown.
+      const hasAudio = [1, 2, 3].includes(meta.audioCodec) && Boolean(audio);
       s.upsertCamera(sn, { codec });
-      this.live.started(sn);
-      this.log("local", `livestream ${device.getName()} running (${codec}, ${meta.videoWidth}x${meta.videoHeight})`);
+      this.live.started(sn, { audio: hasAudio });
+      this.log("local", `livestream ${device.getName()} running (${codec}, ${meta.videoWidth}x${meta.videoHeight}, ${hasAudio ? "with" : "no"} audio)`);
       video.on("data", (chunk) => this.live.feed(sn, chunk));
       video.on("end", () => this.live.ended(sn));
+      if (hasAudio) audio.on("data", (chunk) => this.live.feedAudio(sn, chunk));
     });
     c.on("station livestream stop", (_st, device) => {
       this.live.ended(device.getSerial());

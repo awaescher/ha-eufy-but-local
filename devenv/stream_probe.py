@@ -5,7 +5,7 @@ fMP4 muxing) without a running Home Assistant. Use it against the simulator or r
 
     .venv/bin/python devenv/stream_probe.py "http://127.0.0.1:3080/api/stream/<sn>?token=<token>"
 
-Pass --no-wallclock to see how the worker behaves without the option the camera entity sets.
+Pass --wallclock to override the stream's own timestamps with arrival time (for raw .h264 URLs).
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def main() -> int:
     parser.add_argument("url")
     parser.add_argument("--segments", type=int, default=4)
     parser.add_argument("--timeout", type=float, default=60)
-    parser.add_argument("--no-wallclock", action="store_true")
+    parser.add_argument("--wallclock", action="store_true")
     args = parser.parse_args()
 
     done = threading.Event()
@@ -54,7 +54,7 @@ def main() -> int:
     state = StreamState(hass, lambda: {"hls": output}, diagnostics)
     converter = KeyFrameConverter(hass, STREAM_SETTINGS_NON_LL_HLS, DynamicStreamSettings())
     options = {"tls_verify": "0"}
-    if not args.no_wallclock:
+    if args.wallclock:
         options[CONF_USE_WALLCLOCK_AS_TIMESTAMPS] = "1"
 
     errors: list[str] = []

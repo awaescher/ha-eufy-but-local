@@ -7,12 +7,14 @@
 //   POST /api/code   {code}              2FA code or captcha answer
 //   GET  /api/captcha                    captcha image (while requested)
 //   GET  /api/image/:sn                  latest event thumbnail (local)
-//   GET  /api/stream/:sn[.h264]          raw H.264 livestream (starts camera)
+//   GET  /api/stream/:sn[.ts|.h264]      livestream (starts camera): MPEG-TS with audio, or raw H.264
 //   POST /api/station/:sn/guard {mode}   AWAY | HOME | DISARMED | ...
 //   POST /api/simulator/:sn/event        simulator only: trigger an event
 
 import http from "node:http";
 import { timingSafeEqual } from "node:crypto";
+
+import { TsMuxer } from "./mpegts.mjs";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const STATE_DEBOUNCE_MS = 200;
@@ -109,15 +111,30 @@ export function createApi({ state, connector, credentials, simulator = null, tok
     },
 
     "GET stream": async ({ req, res, id }) => {
-      const sn = String(id ?? "").replace(/\.h264$/, "");
+      // {sn} or {sn}.ts: MPEG-TS with video and audio; {sn}.h264: raw video only.
+      const raw = String(id ?? "").endsWith(".h264");
+      const sn = String(id ?? "").replace(/\.(h264|ts)$/, "");
       if (!state.cameras[sn]) return send(res, 404, { error: "unknown camera" });
       if (!connector.connected) return send(res, 503, { error: "not connected" });
       if (!connector.live.admits(sn)) {
         return send(res, 409, { error: "another camera of this HomeBase took over the livestream" });
       }
-      res.writeHead(200, { "content-type": "video/h264", "cache-control": "no-store", connection: "close" });
-      req.on("close", () => connector.live.removeViewer(sn, res));
-      await connector.live.addViewer(sn, res);
+      res.writeHead(200, { "content-type": raw ? "video/h264" : "video/mp2t", "cache-control": "no-store", connection: "close" });
+      let muxer = null;
+      const viewer = {
+        push(unit) {
+          if (raw) {
+            if (unit.kind === "video") res.write(unit.data);
+            return;
+          }
+          // Created on the first unit: by then the stream has started and says whether it has audio.
+          muxer ??= new TsMuxer({ audio: connector.live.hasAudio(sn) });
+          res.write(muxer.mux(unit));
+        },
+        end: () => res.end(),
+      };
+      req.on("close", () => connector.live.removeViewer(sn, viewer));
+      await connector.live.addViewer(sn, viewer);
     },
 
     "POST station": async ({ req, res, id, action }) => {

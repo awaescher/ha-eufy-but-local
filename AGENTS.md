@@ -63,7 +63,9 @@ bridge/
   src/state.mjs         observable state (stations, cameras, phase) + discrete events
   src/eufy.mjs          EufyConnector: eufy-security-client events -> state
   src/images.mjs        serialized thumbnail downloads from the HomeBase database
-  src/live.mjs          on-demand livestreams, viewer refcount, GOP cache
+  src/live.mjs          on-demand livestreams, viewer refcount, GOP cache, one camera per station
+  src/mpegts.mjs        MPEG-TS muxer (H.264 + AAC/ADTS)
+  src/image-v2.mjs      v2 thumbnail decoder (ported, see third-party/)
   src/h264.mjs          Annex-B helpers (SPS detection)
   src/http.mjs          HTTP + SSE API
   src/credentials.mjs   credential file (mode 0600)
@@ -93,7 +95,7 @@ docs/                   STATUS.md, architecture.md, offline-test-plan.md, adr/
 | POST | `/api/code` | `{code}` 2FA code or captcha answer |
 | GET | `/api/captcha` | image while `phase == "captcha"` |
 | GET | `/api/image/{sn}` | latest event thumbnail (JPEG) or 404 |
-| GET | `/api/stream/{sn}[.h264]` | raw H.264 Annex-B; first viewer wakes the camera |
+| GET | `/api/stream/{sn}[.ts\|.h264]` | MPEG-TS (H.264 + AAC) or `.h264` raw video; first viewer wakes the camera; 409 while displaced by another camera of the station |
 | POST | `/api/station/{sn}/guard` | `{mode}`: `AWAY`, `HOME`, `DISARMED`, … |
 | POST | `/api/simulator/{sn}/event` | simulator only |
 

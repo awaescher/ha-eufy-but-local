@@ -193,6 +193,27 @@ describe("bridge API (simulated HomeBase)", () => {
     await until(() => b.state.cameras[CAM].live === false);
   });
 
+  it("streams MPEG-TS with video and audio by default", async () => {
+    const cam = SIM_CAMERAS[2].sn;
+    const ctrl = new AbortController();
+    const res = await b.api(`/api/stream/${cam}.ts`, { signal: ctrl.signal });
+    assert.equal(res.headers.get("content-type"), "video/mp2t");
+    const reader = res.body.getReader();
+    const pids = new Set();
+    let pending = Buffer.alloc(0);
+    while (!(pids.has(0x100) && pids.has(0x101))) {
+      const { value } = await reader.read();
+      pending = Buffer.concat([pending, value]);
+      while (pending.length >= 188) {
+        assert.equal(pending[0], 0x47);
+        pids.add(((pending[1] & 0x1f) << 8) | pending[2]);
+        pending = pending.subarray(188);
+      }
+    }
+    ctrl.abort();
+    await until(() => !b.state.cameras[cam].live);
+  });
+
   it("switches the HomeBase to the newest camera and refuses the displaced one", async () => {
     const CAM2 = SIM_CAMERAS[1].sn;
     const readSome = async (res) => {

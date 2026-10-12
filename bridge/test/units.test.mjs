@@ -17,8 +17,8 @@ const SPS3 = Buffer.from([0, 0, 1, 0x67, 0x42]);
 const PFRAME = Buffer.from([0, 0, 0, 1, 0x41, 0x9a, 0x00]);
 
 class Sink {
-  constructor() { this.chunks = []; this.ended = false; }
-  write(c) { this.chunks.push(c); }
+  constructor() { this.chunks = []; this.units = []; this.ended = false; }
+  push(u) { this.units.push(u); if (u.kind === "video") this.chunks.push(u.data); }
   end() { this.ended = true; }
   get bytes() { return Buffer.concat(this.chunks); }
 }

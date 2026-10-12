@@ -26,3 +26,17 @@ to all viewers; late viewers receive a GOP cache starting at the last SPS; the s
   Fallback if go2rtc fails: remux to MPEG-TS or fMP4 in the bridge, or bundle go2rtc.
 - H.265 cameras would need transcoding; the tested models report H.264 (prototype metadata).
 - Verified in tests: late viewers start exactly at an SPS; streams stop after the idle period.
+
+## Update 2026-10-13: MPEG-TS with audio
+
+The cameras send AAC-LC audio (16 kHz mono, ADTS) next to the video over the same P2P session.
+Raw Annex-B cannot carry it, so `GET /api/stream/{sn}[.ts]` now serves MPEG-TS from a small
+muxer in the bridge (`bridge/src/mpegts.mjs`, no ffmpeg). Timestamps are the frames' arrival
+times; the `use_wallclock_as_timestamps` workaround is gone. `.h264` still serves raw video.
+
+Verified against the simulator: PyAV reads `mpegts` with `h264` + `aac` (LC, 16 kHz), HA's stream
+worker produces HLS segments with an `mp4a.40.2` track, and go2rtc decodes frames from it.
+Open: audio over WebRTC (go2rtc would have to transcode AAC to Opus) and on real hardware.
+
+The HomeBase streams one camera at a time; see `bridge/src/live.mjs` for how the bridge
+arbitrates between cameras of one station.

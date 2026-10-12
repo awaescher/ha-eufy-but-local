@@ -40,6 +40,19 @@ export function splitFrames(buf) {
   return starts.map((s, k) => buf.subarray(s, k + 1 < starts.length ? starts[k + 1] : buf.length));
 }
 
+/** Splits an ADTS stream into frames (the header carries each frame's length). */
+export function splitAdts(buf) {
+  const frames = [];
+  for (let i = 0; i + 7 <= buf.length; ) {
+    if (buf[i] !== 0xff || (buf[i + 1] & 0xf0) !== 0xf0) break;
+    const length = ((buf[i + 3] & 0x03) << 11) | (buf[i + 4] << 3) | (buf[i + 5] >> 5);
+    if (length < 7) break;
+    frames.push(buf.subarray(i, i + length));
+    i += length;
+  }
+  return frames;
+}
+
 /**
  * Builds a module compatible with what EufyConnector expects from
  * eufy-security-client.
@@ -52,6 +65,8 @@ export function splitFrames(buf) {
 export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, fps = 15 } = {}) {
   const video = readFileSync(join(ASSETS, "stream.h264"));
   const frames = splitFrames(video);
+  // AAC-LC, 16 kHz, mono like the real cameras: one frame = 1024 samples = 64 ms.
+  const audioFrames = splitAdts(readFileSync(join(ASSETS, "audio.aac")));
   const images = Object.fromEntries(SIM_CAMERAS.map((c) => [c.sn, readFileSync(join(ASSETS, c.image))]));
   const imageType = (sn) =>
     SIM_CAMERAS.find((c) => c.sn === sn)?.image.endsWith(".v2")
@@ -142,12 +157,15 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
       // The HomeBase streams one camera at a time and switches to the newest request.
       for (const other of [...streams.keys()]) await this.stopStationLivestream(other);
       const readable = new Readable({ read() {} });
+      const audio = new Readable({ read() {} });
       let i = 0;
-      const entry = { readable, timer: null };
+      let a = 0;
+      const entry = { readable, audio, timer: null, audioTimer: null };
       streams.set(sn, entry);
       setTimeout(() => {
-        this.emit("station livestream start", station, device, { videoCodec: 0, videoFPS: fps, videoWidth: 640, videoHeight: 360, audioCodec: -1 }, readable, new Readable({ read() {} }));
+        this.emit("station livestream start", station, device, { videoCodec: 0, videoFPS: fps, videoWidth: 640, videoHeight: 360, audioCodec: 2 }, readable, audio);
         entry.timer = setInterval(() => readable.push(frames[i++ % frames.length]), 1000 / fps);
+        entry.audioTimer = setInterval(() => audio.push(audioFrames[a++ % audioFrames.length]), 64);
       }, 50);
     }
 
@@ -155,8 +173,10 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
       const entry = streams.get(sn);
       if (!entry) return;
       clearInterval(entry.timer);
+      clearInterval(entry.audioTimer);
       streams.delete(sn);
       entry.readable.push(null);
+      entry.audio.push(null);
       const device = devices.find((d) => d.getSerial() === sn);
       this.emit("station livestream stop", station, device);
     }
