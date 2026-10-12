@@ -27,6 +27,17 @@ With this repository (bridge natively on macOS, Home Assistant 2026.10.1 from `d
   Home Assistant's reconnects made them displace each other. The bridge now arbitrates
   (`bridge/src/live.mjs`); re-test on hardware.
 - Guard mode `SCHEDULE` is reported; it showed as unknown and now maps to "armed custom bypass".
+- Audio: the cameras send AAC-LC 16 kHz mono over P2P; the bridge's MPEG-TS carries it.
+- Writing a camera setting over P2P (status LED, via `POST /api/device/{sn}/property`): the
+  HomeBase confirms in 0.3–0.5 s, so it most likely does not wake the camera (a livestream wake
+  takes ~1.9 s).
+- Changes made in the Eufy app while the bridge runs: the spotlight (`light`) arrives locally in
+  real time; night vision (`nightvision`) does not, so Home Assistant shows the old value until
+  the bridge reconnects. On every P2P connect the HomeBase reports current values (battery,
+  battery temperature, Wi-Fi, some recording settings) by itself.
+- The HomeBase 2 does not answer the detailed local event queries (`databaseQueryLocal`: 0
+  records, `databaseQueryByDate`: no answer), so person vs. motion is not available locally
+  (ADR 0011).
 
 Not yet verified on hardware:
 
