@@ -7,7 +7,7 @@ from collections.abc import Mapping
 import logging
 from typing import Any
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import SOURCE_REAUTH, ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_EMAIL, CONF_HOST, CONF_PASSWORD, CONF_PORT
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import voluptuous as vol
@@ -77,6 +77,9 @@ class EufyLocalConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="no_station")
         station_sn, station = next(iter(stations.items()))
         await self.async_set_unique_id(station_sn)
+        if self.source == SOURCE_REAUTH:
+            self._abort_if_unique_id_mismatch(reason="wrong_station")
+            return self.async_update_reload_and_abort(self._get_reauth_entry(), data=self._data)
         self._abort_if_unique_id_configured(updates=self._data)
         return self.async_create_entry(title=station.get("name") or "HomeBase", data=self._data)
 
@@ -176,8 +179,21 @@ class EufyLocalConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self._submit_code("captcha", user_input)
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
-        """The bridge rejected the token (e.g. BRIDGE_TOKEN was changed)."""
-        return await self.async_step_reauth_confirm()
+        """Either the bridge rejects the token, or it lost its Eufy login."""
+        client = self._make_client(entry_data)
+        try:
+            state = await client.state()
+        except BridgeAuthError:
+            return await self.async_step_reauth_confirm()
+        except BridgeError:
+            return self.async_abort(reason="cannot_connect")
+        self._client, self._data = client, dict(entry_data)
+        phase = state.get("phase")
+        if phase == "ok" and state.get("stations"):
+            return await self._create_entry()
+        if phase in ("connecting", "tfa", "captcha"):
+            return await self._continue_login()
+        return self._show_login(message=state.get("message", ""))
 
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None

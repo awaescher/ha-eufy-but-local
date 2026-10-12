@@ -22,17 +22,23 @@
       "code": {
         "title": "Verification code",
         "description": "Eufy sent a verification code by email or SMS.",
-        "data": { "code": "Code" }
+        "data": {
+          "code": "Code"
+        }
       },
       "captcha": {
         "title": "Captcha",
         "description": "Enter the characters shown in the image: ![Captcha]({captcha_url})",
-        "data": { "code": "Characters" }
+        "data": {
+          "code": "Characters"
+        }
       },
       "reauth_confirm": {
         "title": "Bridge token",
         "description": "The bridge rejected the stored token. Enter the current BRIDGE_TOKEN.",
-        "data": { "token": "Token" }
+        "data": {
+          "token": "Token"
+        }
       }
     },
     "error": {
@@ -44,13 +50,18 @@
       "already_configured": "This HomeBase is already configured.",
       "cannot_connect": "Lost connection to the bridge.",
       "no_station": "No HomeBase found in this account. Is it shared with the secondary account?",
-      "reauth_successful": "Token updated."
+      "reauth_successful": "Re-authentication successful.",
+      "wrong_station": "The bridge is logged in to a different HomeBase than this entry."
     }
   },
   "entity": {
     "binary_sensor": {
-      "local_activity": { "name": "Event (local)" },
-      "p2p_local": { "name": "Local P2P connection" }
+      "local_activity": {
+        "name": "Event (local)"
+      },
+      "p2p_local": {
+        "name": "Local P2P connection"
+      }
     },
     "event": {
       "activity": {
@@ -67,11 +78,17 @@
       }
     },
     "image": {
-      "last_event_image": { "name": "Last event image" }
+      "last_event_image": {
+        "name": "Last event image"
+      }
     },
     "sensor": {
-      "last_event": { "name": "Last event" },
-      "event_count": { "name": "Stored events" }
+      "last_event": {
+        "name": "Last event"
+      },
+      "event_count": {
+        "name": "Stored events"
+      }
     }
   }
 }

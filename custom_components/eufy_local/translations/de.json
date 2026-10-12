@@ -22,17 +22,23 @@
       "code": {
         "title": "Bestätigungscode",
         "description": "Eufy hat einen Bestätigungscode per E-Mail oder SMS geschickt.",
-        "data": { "code": "Code" }
+        "data": {
+          "code": "Code"
+        }
       },
       "captcha": {
         "title": "Captcha",
         "description": "Zeichen aus dem Bild eingeben: ![Captcha]({captcha_url})",
-        "data": { "code": "Zeichen" }
+        "data": {
+          "code": "Zeichen"
+        }
       },
       "reauth_confirm": {
         "title": "Token der Brücke",
         "description": "Die Brücke lehnt das gespeicherte Token ab. Bitte das aktuelle BRIDGE_TOKEN eingeben.",
-        "data": { "token": "Token" }
+        "data": {
+          "token": "Token"
+        }
       }
     },
     "error": {
@@ -44,13 +50,18 @@
       "already_configured": "Diese HomeBase ist bereits eingerichtet.",
       "cannot_connect": "Verbindung zur Brücke verloren.",
       "no_station": "Keine HomeBase im Konto gefunden. Ist sie mit dem Zweitkonto geteilt?",
-      "reauth_successful": "Token aktualisiert."
+      "reauth_successful": "Erneut angemeldet.",
+      "wrong_station": "Die Brücke ist mit einer anderen HomeBase angemeldet als dieser Eintrag."
     }
   },
   "entity": {
     "binary_sensor": {
-      "local_activity": { "name": "Ereignis (lokal)" },
-      "p2p_local": { "name": "Lokale P2P-Verbindung" }
+      "local_activity": {
+        "name": "Ereignis (lokal)"
+      },
+      "p2p_local": {
+        "name": "Lokale P2P-Verbindung"
+      }
     },
     "event": {
       "activity": {
@@ -67,11 +78,17 @@
       }
     },
     "image": {
-      "last_event_image": { "name": "Letztes Ereignisbild" }
+      "last_event_image": {
+        "name": "Letztes Ereignisbild"
+      }
     },
     "sensor": {
-      "last_event": { "name": "Letztes Ereignis" },
-      "event_count": { "name": "Gespeicherte Ereignisse" }
+      "last_event": {
+        "name": "Letztes Ereignis"
+      },
+      "event_count": {
+        "name": "Gespeicherte Ereignisse"
+      }
     }
   }
 }

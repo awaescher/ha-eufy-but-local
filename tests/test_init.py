@@ -108,3 +108,27 @@ async def test_diagnostics_redact_token(
     assert diag["entry"][CONF_TOKEN] == "**REDACTED**"
     assert diag["bridge_state"]["stations"][STATION]["p2p"] is True
     assert diag["last_update_success"] is True
+
+
+async def test_bridge_without_login_starts_reauth(
+    hass: HomeAssistant, bridge: FakeBridge, entry: MockConfigEntry
+) -> None:
+    bridge.logged_out()
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert [f["step_id"] for f in flows] == ["login"]
+
+
+async def test_lost_login_at_runtime_starts_reauth(
+    hass: HomeAssistant, bridge: FakeBridge, setup_integration: MockConfigEntry
+) -> None:
+    # Eufy asks for a new verification code while the integration is running.
+    bridge.state.update(phase="tfa", message="Verification code required")
+    bridge.push_state()
+    await wait_for(lambda: hass.config_entries.flow.async_progress_by_handler(DOMAIN))
+    await hass.async_block_till_done()
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert [(f["context"]["source"], f["step_id"]) for f in flows] == [("reauth", "code")]

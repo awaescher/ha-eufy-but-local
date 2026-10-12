@@ -22,6 +22,9 @@ POLL_INTERVAL = timedelta(seconds=60)
 RECONNECT_MIN_SECONDS = 2
 RECONNECT_MAX_SECONDS = 60
 
+# Bridge phases that stay until someone logs in again (connecting resolves by itself).
+LOGIN_NEEDED_PHASES = ("idle", "tfa", "captcha", "error")
+
 type EufyLocalConfigEntry = ConfigEntry[EufyLocalCoordinator]
 
 
@@ -46,11 +49,16 @@ class EufyLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
-            return await self.client.state()
+            data = await self.client.state()
         except BridgeAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except BridgeError as err:
             raise UpdateFailed(f"bridge unreachable: {err}") from err
+        if (phase := data.get("phase")) in LOGIN_NEEDED_PHASES:
+            raise ConfigEntryAuthFailed(
+                f"the bridge needs a new Eufy login ({phase}): {data.get('message') or '-'}"
+            )
+        return data
 
     def start_listener(self) -> None:
         self.config_entry.async_create_background_task(
@@ -66,6 +74,8 @@ class EufyLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 async for event, data in self.client.events():
                     delay = RECONNECT_MIN_SECONDS
                     if event == "state":
+                        if data.get("phase") in LOGIN_NEEDED_PHASES:
+                            self.config_entry.async_start_reauth(self.hass)
                         self.async_set_updated_data(data)
                     elif event == "event":
                         async_dispatcher_send(self.hass, signal, data)

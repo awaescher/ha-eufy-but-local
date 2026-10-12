@@ -169,3 +169,54 @@ async def test_reauth_updates_token(
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_TOKEN] == TOKEN
     await hass.async_block_till_done()
+
+
+async def test_reauth_after_lost_login(
+    hass: HomeAssistant, bridge: FakeBridge, entry: MockConfigEntry
+) -> None:
+    entry.add_to_hass(hass)
+    bridge.logged_out()
+    bridge.login_result = "tfa"
+    result = await entry.start_reauth_flow(hass)
+    assert result["step_id"] == "login"
+
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], LOGIN)
+    assert result["step_id"] == "code"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_CODE: "123456"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert bridge.logins == [{"email": "second@example.com", "password": "pw", "country": "DE"}]
+    await hass.async_block_till_done()
+
+
+async def test_reauth_when_bridge_recovered_meanwhile(
+    hass: HomeAssistant, bridge: FakeBridge, entry: MockConfigEntry
+) -> None:
+    entry.add_to_hass(hass)
+    result = await entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert bridge.logins == []
+    await hass.async_block_till_done()
+
+
+async def test_reauth_rejects_other_homebase(
+    hass: HomeAssistant, bridge: FakeBridge, entry: MockConfigEntry
+) -> None:
+    entry.add_to_hass(hass)
+    bridge.state["stations"] = {"T8010TEST0000002": bridge.state["stations"][STATION]}
+    result = await entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_station"
+
+
+async def test_reauth_bridge_unreachable(
+    hass: HomeAssistant, bridge: FakeBridge, entry: MockConfigEntry
+) -> None:
+    entry.add_to_hass(hass)
+    await bridge.close()
+    result = await entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "cannot_connect"
