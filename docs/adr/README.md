@@ -13,5 +13,6 @@
 | [0009](0009-testing-strategy.md) | Testing without hardware |
 | [0010](0010-library-pinning-and-migration.md) | Pin the library; keep the login replaceable |
 | [0011](0011-cloud-features-off-by-default.md) | Cloud features off by default, switched in Home Assistant |
+| [0012](0012-feature-set.md) | Feature set: maintainer decisions |
 
 New decisions: add `NNNN-short-title.md` with Status, Context, Decision, Consequences.
