@@ -52,9 +52,10 @@ Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line cove
 1. Verify HA's built-in go2rtc (WebRTC) with the raw H.264 source. The `stream` component
    (HLS) works against the simulator once the camera sets `use_wallclock_as_timestamps`
    (ADR 0006, `devenv/stream_probe.py`). If go2rtc fails, serve MPEG-TS or fMP4 instead.
-2. CI (GitHub Actions): `hassfest`, HACS validation, `pytest`, `npm test`, `ruff`.
-3. Publish the bridge image (GHCR, multi-arch amd64/arm64).
-4. Real-hardware validation of everything listed above, then update this file and the README.
+2. Push to GitHub and check the first CI run (`.github/workflows/ci.yml`). `hassfest` passes
+   locally (Docker image); the HACS check can only run on GitHub (needs repo description and
+   topics). Then tag `v0.1.0` to publish the bridge image to GHCR (`bridge-image.yml`).
+3. Real-hardware validation of everything listed above, then update this file and the README.
 
 ## Known risks
 

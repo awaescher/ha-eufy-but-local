@@ -77,6 +77,8 @@ custom_components/eufy_local/
   camera.py event.py binary_sensor.py image.py sensor.py alarm_control_panel.py
   diagnostics.py
 tests/                  pytest suites + FakeBridge (conftest.py)
+devenv/                 Docker: Home Assistant + bridge simulator; stream_probe.py (HA stream worker)
+.github/workflows/      ci.yml (tests, ruff, hassfest, HACS, image build), bridge-image.yml (GHCR on tags)
 docs/                   STATUS.md, architecture.md, offline-test-plan.md, adr/
 ```
 

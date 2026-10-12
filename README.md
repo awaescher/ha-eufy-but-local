@@ -108,6 +108,9 @@ pip install -r requirements-test.txt && pytest
 cd bridge && npm run simulator              # bridge with a simulated HomeBase, 2FA code 123456
 ```
 
+[devenv/](devenv/README.md) runs Home Assistant with this integration and the simulated
+HomeBase in Docker, no Eufy account or hardware needed.
+
 ## Disclaimer
 
 Not affiliated with Anker or Eufy. Uses the unofficial, reverse-engineered

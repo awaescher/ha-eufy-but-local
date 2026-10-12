@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+  - package-ecosystem: npm
+    directory: /bridge
+    schedule: { interval: weekly }
+    # eufy-security-client is pinned on purpose (ADR 0010); update it by hand after testing.
+    ignore:
+      - dependency-name: eufy-security-client
+  - package-ecosystem: pip
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: docker
+    directory: /bridge
+    schedule: { interval: monthly }
