@@ -11,6 +11,11 @@ from homeassistant.components.alarm_control_panel import (
 )
 from homeassistant.components.camera import async_get_image, async_get_stream_source
 from homeassistant.components.camera.const import DATA_COMPONENT as CAMERA_COMPONENT
+from homeassistant.components.select import (
+    ATTR_OPTION,
+    DOMAIN as SELECT_DOMAIN,
+    SERVICE_SELECT_OPTION,
+)
 from homeassistant.components.stream import CONF_USE_WALLCLOCK_AS_TIMESTAMPS
 from homeassistant.const import (
     ATTR_ENTITY_ID,
@@ -41,6 +46,7 @@ BATTERY = "sensor.front_door_battery"
 IMAGE = "image.front_door_last_event_image"
 P2P = "binary_sensor.homebase_2_local_p2p_connection"
 ALARM = "alarm_control_panel.homebase_2"
+GUARD_SELECT = "select.homebase_2_guard_mode"
 
 pytestmark = pytest.mark.usefixtures("setup_integration")
 
@@ -187,3 +193,33 @@ async def test_missing_thumbnail(hass: HomeAssistant, bridge: FakeBridge) -> Non
     bridge.state["cameras"][CAM]["imageAt"] = None
     bridge.push_state()
     await wait_for(lambda: hass.states.get(IMAGE).state == STATE_UNKNOWN)
+
+
+async def test_guard_mode_select_shows_eufy_modes(hass: HomeAssistant, bridge: FakeBridge) -> None:
+    assert hass.states.get(GUARD_SELECT).state == "home"
+    assert "schedule" in hass.states.get(GUARD_SELECT).attributes["options"]
+    bridge.state["stations"][STATION]["guardModeName"] = "SCHEDULE"
+    bridge.push_state()
+    await wait_for(lambda: hass.states.get(GUARD_SELECT).state == "schedule")
+
+
+async def test_guard_mode_select_sets_mode(hass: HomeAssistant, bridge: FakeBridge) -> None:
+    await hass.services.async_call(
+        SELECT_DOMAIN,
+        SERVICE_SELECT_OPTION,
+        {ATTR_ENTITY_ID: GUARD_SELECT, ATTR_OPTION: "geofencing"},
+        blocking=True,
+    )
+    assert bridge.guard_requests == [(STATION, "GEO")]
+    await wait_for(lambda: hass.states.get(GUARD_SELECT).state == "geofencing")
+
+
+async def test_guard_mode_select_failure(hass: HomeAssistant, bridge: FakeBridge) -> None:
+    bridge.reject_guard = True
+    with pytest.raises(HomeAssistantError, match="Could not set guard mode"):
+        await hass.services.async_call(
+            SELECT_DOMAIN,
+            SERVICE_SELECT_OPTION,
+            {ATTR_ENTITY_ID: GUARD_SELECT, ATTR_OPTION: "away"},
+            blocking=True,
+        )

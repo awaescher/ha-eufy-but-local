@@ -89,6 +89,21 @@
       "event_count": {
         "name": "Gespeicherte Ereignisse"
       }
+    },
+    "select": {
+      "guard_mode": {
+        "name": "Alarmmodus",
+        "state": {
+          "home": "Zuhause",
+          "away": "Abwesend",
+          "schedule": "Zeitplan",
+          "geofencing": "Geofencing",
+          "custom1": "Benutzerdefiniert 1",
+          "custom2": "Benutzerdefiniert 2",
+          "custom3": "Benutzerdefiniert 3",
+          "disarmed": "Deaktiviert"
+        }
+      }
     }
   }
 }

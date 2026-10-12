@@ -89,6 +89,21 @@
       "event_count": {
         "name": "Stored events"
       }
+    },
+    "select": {
+      "guard_mode": {
+        "name": "Guard mode",
+        "state": {
+          "home": "Home",
+          "away": "Away",
+          "schedule": "Schedule",
+          "geofencing": "Geofencing",
+          "custom1": "Custom 1",
+          "custom2": "Custom 2",
+          "custom3": "Custom 3",
+          "disarmed": "Disarmed"
+        }
+      }
     }
   }
 }

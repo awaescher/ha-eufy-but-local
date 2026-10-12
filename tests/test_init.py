@@ -42,6 +42,7 @@ async def test_setup_creates_devices_and_entities(
         "camera",
         "event",
         "image",
+        "select",
         "sensor",
         "sensor",
         "sensor",

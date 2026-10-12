@@ -55,7 +55,27 @@ decisions: [docs/adr/](docs/adr/README.md).
 Per camera: camera (still image = latest event thumbnail, live view on demand), event
 "Activity" (`local_recording`, `person`, `motion`), binary sensor "Event (local)", image
 "Last event image", battery, last event, stored events.
-Per HomeBase: alarm panel (Away / Home / Disarmed), "Local P2P connection".
+Per HomeBase: alarm panel, select "Guard mode", "Local P2P connection".
+
+The alarm panel offers Home Assistant's fixed states. Eufy modes without an equivalent
+(schedule, geofencing, custom 1-3) show as "armed custom bypass"; the select "Guard mode" shows
+and sets every Eufy mode by its own name.
+
+The integration is translated into English and German; Home Assistant picks the language of
+the user interface.
+
+## Network
+
+"LAN-only" describes the path, not the cable: the bridge talks to the HomeBase directly inside
+your network instead of through Eufy's servers. Ethernet or Wi-Fi makes no difference as long as:
+
+- the bridge host and the HomeBase are in the same IP network (the bridge finds the HomeBase by
+  UDP broadcast);
+- the Wi-Fi does not isolate clients from each other (guest networks, "AP/client isolation")
+  and passes broadcasts. If discovery fails, set `HB_IP` (and `HB_SN`) to skip it;
+- in Docker the bridge uses host networking (`network_mode: host`).
+
+Tested so far with the bridge host on Ethernet; Wi-Fi for the bridge host is untested.
 
 ## Installation
 
