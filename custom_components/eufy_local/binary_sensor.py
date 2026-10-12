@@ -49,7 +49,9 @@ class EufyLocalActivity(EufyCameraEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         last = self._last_event()
-        return last is not None and dt_util.utcnow() - last < timedelta(seconds=EVENT_ACTIVE_SECONDS)
+        return last is not None and dt_util.utcnow() - last < timedelta(
+            seconds=EVENT_ACTIVE_SECONDS
+        )
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

@@ -26,8 +26,9 @@ async def test_setup_creates_devices_and_entities(
     assert setup_integration.state is ConfigEntryState.LOADED
 
     devices = dr.async_get(hass)
-    station = devices.async_get_device(identifiers={(DOMAIN, STATION)})
-    camera = devices.async_get_device(identifiers={(DOMAIN, CAM)})
+    entry_id = setup_integration.entry_id
+    station = devices.async_get_device_by_identifier((DOMAIN, STATION), entry_id)
+    camera = devices.async_get_device_by_identifier((DOMAIN, CAM), entry_id)
     assert station.model == "T8010"
     assert camera.name == "Front door"
     assert camera.via_device_id == station.id

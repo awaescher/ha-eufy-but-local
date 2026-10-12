@@ -40,9 +40,9 @@ SENSORS: tuple[EufySensorDescription, ...] = (
         key="last_event",
         translation_key="last_event",
         device_class=SensorDeviceClass.TIMESTAMP,
-        value_fn=lambda cam: dt_util.parse_datetime(cam["lastEventAt"])
-        if cam.get("lastEventAt")
-        else None,
+        value_fn=lambda cam: (
+            dt_util.parse_datetime(cam["lastEventAt"]) if cam.get("lastEventAt") else None
+        ),
     ),
     EufySensorDescription(
         key="event_count",

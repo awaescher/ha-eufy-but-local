@@ -11,6 +11,16 @@ from .const import DOMAIN, MANUFACTURER
 from .coordinator import EufyLocalCoordinator
 
 
+def station_device_info(station_sn: str, station: dict[str, Any]) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, station_sn)},
+        name=station.get("name") or "HomeBase",
+        manufacturer=MANUFACTURER,
+        model=station.get("model"),
+        serial_number=station_sn,
+    )
+
+
 class EufyStationEntity(CoordinatorEntity[EufyLocalCoordinator]):
     """An entity belonging to the HomeBase."""
 
@@ -20,13 +30,8 @@ class EufyStationEntity(CoordinatorEntity[EufyLocalCoordinator]):
         super().__init__(coordinator)
         self.station_sn = station_sn
         self._attr_unique_id = f"{station_sn}_{key}"
-        station = coordinator.stations.get(station_sn, {})
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, station_sn)},
-            name=station.get("name") or "HomeBase",
-            manufacturer=MANUFACTURER,
-            model=station.get("model"),
-            serial_number=station_sn,
+        self._attr_device_info = station_device_info(
+            station_sn, coordinator.stations.get(station_sn, {})
         )
 
     @property
@@ -54,8 +59,9 @@ class EufyCameraEntity(CoordinatorEntity[EufyLocalCoordinator]):
             manufacturer=MANUFACTURER,
             model=cam.get("model"),
             serial_number=device_sn,
-            via_device=(DOMAIN, cam["station"]) if cam.get("station") else None,
         )
+        if station_device_id := coordinator.station_device_ids.get(cam.get("station") or ""):
+            self._attr_device_info["via_device_id"] = station_device_id
 
     @property
     def cam(self) -> dict[str, Any]:

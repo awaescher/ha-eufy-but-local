@@ -44,9 +44,10 @@ npm run simulator              # bridge with a simulated HomeBase (2FA code 1234
 node --test --experimental-test-coverage test/*.test.mjs
 
 # Integration
-python3.13 -m venv .venv && . .venv/bin/activate
+python3.14 -m venv .venv   # HA 2026.10 needs Python >= 3.14.2 && . .venv/bin/activate
 pip install -r requirements-test.txt
-pytest                         # uses pytest-homeassistant-custom-component
+pytest                         # uses pytest-homeassistant-custom-component (pinned)
+ruff check . && ruff format --check .
 pytest --cov --cov-report=term-missing
 ```
 

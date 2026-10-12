@@ -2,7 +2,7 @@
 name = "ha-local-eufy-cams"
 version = "0.1.0"
 description = "Home Assistant integration for Eufy HomeBase 2 with local events, thumbnails and live view"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [{ name = "Andreas Wäscher" }]
 
@@ -16,7 +16,13 @@ source = ["custom_components/eufy_local"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+# Same import style as Home Assistant core.
+force-sort-within-sections = true
+combine-as-imports = true
+known-first-party = ["custom_components"]

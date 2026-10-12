@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import BridgeClient
 from .const import CONF_TOKEN
 from .coordinator import EufyLocalConfigEntry, EufyLocalCoordinator
+from .entity import station_device_info
 
 PLATFORMS: list[Platform] = [
     Platform.ALARM_CONTROL_PANEL,
@@ -35,6 +37,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufyLocalConfigEntry) ->
     coordinator = EufyLocalCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+    # Cameras reference their HomeBase by device id, so it must exist before any entity.
+    devices = dr.async_get(hass)
+    for station_sn, station in coordinator.stations.items():
+        device = devices.async_get_or_create(
+            config_entry_id=entry.entry_id, **station_device_info(station_sn, station)
+        )
+        coordinator.station_device_ids[station_sn] = device.id
     coordinator.start_listener()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import copy
 from collections.abc import AsyncGenerator
+import copy
 import json
 from typing import Any
 
 from aiohttp import web
 from aiohttp.test_utils import TestServer
-import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
+import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.eufy_local import config_flow
 from custom_components.eufy_local.const import CONF_TOKEN, DOMAIN
@@ -134,7 +133,7 @@ class FakeBridge:
                 if frame is None:
                     break
                 await resp.write(frame.encode())
-        except (ConnectionResetError, asyncio.CancelledError):
+        except ConnectionResetError, asyncio.CancelledError:
             pass
         finally:
             self._queues.discard(queue)
@@ -240,7 +239,10 @@ async def setup_integration(
 
 
 async def wait_for(condition, timeout: float = 3.0) -> None:
-    """Wait until `condition()` is true (for effects that cross real sockets)."""
+    """Wait until `condition()` is true (for effects that cross real sockets).
+
+    Hangs under the `freezer` fixture: it freezes the loop clock, so asyncio.sleep() never ends.
+    """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while not condition():

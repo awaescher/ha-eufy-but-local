@@ -29,7 +29,9 @@ class EufyLastEventImage(EufyCameraEntity, ImageEntity):
     _attr_translation_key = "last_event_image"
     _attr_content_type = "image/jpeg"
 
-    def __init__(self, hass: HomeAssistant, coordinator: EufyLocalCoordinator, device_sn: str) -> None:
+    def __init__(
+        self, hass: HomeAssistant, coordinator: EufyLocalCoordinator, device_sn: str
+    ) -> None:
         EufyCameraEntity.__init__(self, coordinator, device_sn, "last_event_image")
         ImageEntity.__init__(self, hass)
         self._sync_timestamp()

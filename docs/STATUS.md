@@ -27,9 +27,12 @@ Not yet verified on hardware:
 | Suite | Result | Notes |
 |---|---|---|
 | `bridge`: `npm test` | 42 passing | ~97 % line coverage (node built-in coverage) |
-| `tests/test_config_flow.py` | 11 passing, 1 not re-run | `test_account_without_station` now expects abort `no_station`; re-run it |
+| `tests/test_config_flow.py` | 12 passing | |
 | `tests/test_init.py` | 6 passing | |
-| `tests/test_entities.py` | **hangs** | see open issue 1 |
+| `tests/test_entities.py` | 14 passing | |
+
+Python suites run against Home Assistant 2026.10.1 (Python 3.14), 96 % line coverage.
+`ruff check` and `ruff format --check` are clean.
 
 ## Open work, in priority order
 

@@ -41,6 +41,8 @@ class EufyLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=POLL_INTERVAL,
         )
         self.client = client
+        # station serial -> device registry id, so cameras can link to their HomeBase
+        self.station_device_ids: dict[str, str] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -70,7 +72,7 @@ class EufyLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except BridgeAuthError:
                 _LOGGER.error("The bridge rejected the token; event stream stopped")
                 return
-            except Exception as err:  # noqa: BLE001 - the stream must never die for good
+            except Exception as err:
                 _LOGGER.debug("Event stream interrupted: %s", err)
             # Let the regular refresh decide whether the bridge is really gone.
             await self.async_request_refresh()

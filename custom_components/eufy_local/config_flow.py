@@ -7,11 +7,10 @@ from collections.abc import Mapping
 import logging
 from typing import Any
 
-import voluptuous as vol
-
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_EMAIL, CONF_HOST, CONF_PASSWORD, CONF_PORT
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import voluptuous as vol
 
 from .api import BridgeAuthError, BridgeClient, BridgeError
 from .const import CONF_CODE, CONF_COUNTRY, CONF_TOKEN, DEFAULT_PORT, DOMAIN
@@ -148,7 +147,9 @@ class EufyLocalConfigFlow(ConfigFlow, domain=DOMAIN):
             return self._show_login({"base": "cannot_connect"})
         return await self._continue_login()
 
-    async def _submit_code(self, step_id: str, user_input: dict[str, Any] | None) -> ConfigFlowResult:
+    async def _submit_code(
+        self, step_id: str, user_input: dict[str, Any] | None
+    ) -> ConfigFlowResult:
         assert self._client
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -169,7 +170,9 @@ class EufyLocalConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_code(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return await self._submit_code("code", user_input)
 
-    async def async_step_captcha(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_captcha(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         return await self._submit_code("captcha", user_input)
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:

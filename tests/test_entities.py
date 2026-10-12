@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import timedelta
 from http import HTTPStatus
 
-from freezegun.api import FrozenDateTimeFactory
-import pytest
 from homeassistant.components.alarm_control_panel import (
     DOMAIN as ALARM_DOMAIN,
     AlarmControlPanelState,
@@ -24,11 +22,11 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    async_fire_time_changed,
-)
+import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
+
+from custom_components.eufy_local.const import EVENT_ACTIVE_SECONDS
 
 from .conftest import CAM, JPEG, STATION, TOKEN, FakeBridge, wait_for
 
@@ -45,15 +43,6 @@ ALARM = "alarm_control_panel.homebase_2"
 pytestmark = pytest.mark.usefixtures("setup_integration")
 
 
-async def push(hass: HomeAssistant, bridge: FakeBridge, *, state: bool = True, event=None) -> None:
-    """Push an update through the real SSE connection and wait for HA to apply it."""
-    if state:
-        bridge.push_state()
-    if event:
-        bridge.push_event(event)
-    await hass.async_block_till_done()
-
-
 async def test_initial_states(hass: HomeAssistant) -> None:
     assert hass.states.get(BATTERY).state == "87"
     assert hass.states.get(COUNT).state == "120"
@@ -65,11 +54,11 @@ async def test_initial_states(hass: HomeAssistant) -> None:
     assert hass.states.get(EVENT).state == STATE_UNKNOWN
 
 
-async def test_local_recording(
-    hass: HomeAssistant, bridge: FakeBridge, freezer: FrozenDateTimeFactory
-) -> None:
-    now = dt_util.utcnow()
-    bridge.state["cameras"][CAM].update(count=121, lastEventAt=now.isoformat())
+async def test_local_recording(hass: HomeAssistant, bridge: FakeBridge) -> None:
+    # Real time instead of `freezer`: a frozen clock also stops asyncio.sleep() in wait_for().
+    # The event lies just inside the active window, so the expiry is observable quickly.
+    last = dt_util.utcnow() - timedelta(seconds=EVENT_ACTIVE_SECONDS - 1)
+    bridge.state["cameras"][CAM].update(count=121, lastEventAt=last.isoformat())
     bridge.push_state()
     bridge.push_event({"type": "local_recording", "device_sn": CAM, "count": 121})
     await wait_for(lambda: hass.states.get(EVENT).state != STATE_UNKNOWN)
@@ -77,16 +66,14 @@ async def test_local_recording(
 
     assert hass.states.get(ACTIVITY).state == STATE_ON
     assert hass.states.get(COUNT).state == "121"
-    assert dt_util.parse_datetime(hass.states.get(LAST_EVENT).state) == now.replace(microsecond=now.microsecond)
+    # Timestamp sensor states are formatted to whole seconds.
+    assert dt_util.parse_datetime(hass.states.get(LAST_EVENT).state) == last.replace(microsecond=0)
     event = hass.states.get(EVENT)
     assert event.attributes["event_type"] == "local_recording"
     assert event.attributes["source"] == "local"
 
     # The activity sensor turns off by itself after the active window.
-    freezer.tick(timedelta(seconds=31))
-    async_fire_time_changed(hass)
-    await hass.async_block_till_done()
-    assert hass.states.get(ACTIVITY).state == STATE_OFF
+    await wait_for(lambda: hass.states.get(ACTIVITY).state == STATE_OFF)
 
 
 async def test_cloud_push_event(hass: HomeAssistant, bridge: FakeBridge) -> None:
@@ -140,7 +127,7 @@ async def test_unmapped_guard_mode(hass: HomeAssistant, bridge: FakeBridge) -> N
 
 
 async def test_camera_image_is_cached_until_a_new_thumbnail(
-    hass: HomeAssistant, bridge: FakeBridge
+    hass: HomeAssistant, bridge: FakeBridge, setup_integration: MockConfigEntry
 ) -> None:
     image = await async_get_image(hass, CAMERA)
     assert image.content == JPEG
@@ -151,9 +138,8 @@ async def test_camera_image_is_cached_until_a_new_thumbnail(
     bridge.images[CAM] = JPEG + b"new"
     bridge.state["cameras"][CAM]["imageAt"] = "2026-10-13T09:00:00.000Z"
     bridge.push_state()
-    await wait_for(lambda: hass.data and True)
-    await hass.async_block_till_done()
-    await wait_for(lambda: True)
+    coordinator = setup_integration.runtime_data
+    await wait_for(lambda: coordinator.cameras[CAM]["imageAt"] == "2026-10-13T09:00:00.000Z")
     image = await async_get_image(hass, CAMERA)
     assert image.content == JPEG + b"new"
 

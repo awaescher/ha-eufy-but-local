@@ -67,7 +67,9 @@ async def test_login_with_2fa(hass: HomeAssistant, bridge: FakeBridge) -> None:
     assert result["step_id"] == "code"
     assert bridge.logins == [{"email": "second@example.com", "password": "pw", "country": "DE"}]
 
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_CODE: " 123456 "})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_CODE: " 123456 "}
+    )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert bridge.codes == ["123456"]
     # Eufy credentials stay on the bridge; the entry only knows the bridge.
@@ -82,7 +84,9 @@ async def test_login_with_captcha(hass: HomeAssistant, bridge: FakeBridge) -> No
     result = await hass.config_entries.flow.async_configure(result["flow_id"], LOGIN)
     assert result["step_id"] == "captcha"
     assert result["description_placeholders"]["captcha_url"].endswith(f"/api/captcha?token={TOKEN}")
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_CODE: "123456"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_CODE: "123456"}
+    )
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
@@ -103,7 +107,9 @@ async def test_wrong_2fa_code(hass: HomeAssistant, bridge: FakeBridge) -> None:
     result = await start(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], bridge_input(bridge))
     result = await hass.config_entries.flow.async_configure(result["flow_id"], LOGIN)
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_CODE: "000000"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_CODE: "000000"}
+    )
     assert result["step_id"] == "login"
     assert result["errors"] == {"base": "login_failed"}
 
@@ -153,7 +159,9 @@ async def test_reauth_updates_token(
     result = await entry.start_reauth_flow(hass)
     assert result["step_id"] == "reauth_confirm"
 
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_TOKEN: "still-wrong"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_TOKEN: "still-wrong"}
+    )
     assert result["errors"] == {"base": "invalid_token"}
 
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_TOKEN: TOKEN})
