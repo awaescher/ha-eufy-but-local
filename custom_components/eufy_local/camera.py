@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from homeassistant.components.camera import Camera, CameraEntityFeature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -54,6 +56,10 @@ class EufyLocalCamera(EufyCameraEntity, Camera):
             if image:
                 self._image, self._image_at = image, image_at
         return self._image
+
+    async def async_snooze(self, duration: timedelta) -> None:
+        """Silence the camera's detection and notifications for `duration` (P2P)."""
+        await self._command("snooze", max(1, int(duration.total_seconds())))
 
     async def stream_source(self) -> str | None:
         """MPEG-TS (video + audio) from the bridge; opening it wakes the camera."""

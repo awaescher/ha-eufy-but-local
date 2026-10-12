@@ -61,6 +61,9 @@
       },
       "p2p_local": {
         "name": "Local P2P connection"
+      },
+      "alarm": {
+        "name": "Alarm"
       }
     },
     "event": {
@@ -70,7 +73,7 @@
           "event_type": {
             "state": {
               "local_recording": "New recording (local)",
-              "person": "Person (cloud)",
+              "person": "Person",
               "motion": "Motion (cloud)"
             }
           }
@@ -88,6 +91,37 @@
       },
       "event_count": {
         "name": "Stored events"
+      },
+      "wifi_rssi": {
+        "name": "Wi-Fi signal"
+      },
+      "battery_temperature": {
+        "name": "Battery temperature"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "battery_usage_last_week": {
+        "name": "Battery usage last week"
+      },
+      "days_since_charging": {
+        "name": "Days since charging"
+      },
+      "recorded_events_since_charging": {
+        "name": "Recorded events since charging"
+      },
+      "total_events_since_charging": {
+        "name": "Events since charging"
+      },
+      "lan_ip": {
+        "name": "LAN IP address"
+      },
+      "charging_status": {
+        "name": "Charging",
+        "state": {
+          "not_charging": "Not charging",
+          "charging": "Charging"
+        }
       }
     },
     "select": {
@@ -103,6 +137,143 @@
           "custom3": "Custom 3",
           "disarmed": "Disarmed"
         }
+      },
+      "motion_detection_type": {
+        "name": "Motion detection type",
+        "state": {
+          "humans_only": "Humans only",
+          "all_motions": "All motions"
+        }
+      },
+      "night_vision": {
+        "name": "Night vision",
+        "state": {
+          "off": "Off",
+          "infrared": "Infrared",
+          "color": "Colour (spotlight)"
+        }
+      },
+      "speaker_volume": {
+        "name": "Speaker volume",
+        "state": {
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "power_mode": {
+        "name": "Power mode",
+        "state": {
+          "optimal_battery": "Optimal battery life",
+          "optimal_surveillance": "Optimal surveillance",
+          "custom": "Custom recording"
+        }
+      },
+      "streaming_quality": {
+        "name": "Streaming quality",
+        "state": {
+          "auto": "Auto",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "recording_quality": {
+        "name": "Recording quality",
+        "state": {
+          "2k": "2K",
+          "full_hd": "Full HD (1080p)"
+        }
+      },
+      "watermark": {
+        "name": "Watermark",
+        "state": {
+          "off": "Off",
+          "timestamp": "Timestamp",
+          "timestamp_and_logo": "Timestamp and logo"
+        }
+      },
+      "notification_type": {
+        "name": "Eufy app notification",
+        "state": {
+          "most_efficient": "Most efficient",
+          "include_thumbnail": "With thumbnail",
+          "full_effect": "Full effect"
+        }
+      },
+      "power_source": {
+        "name": "Power source",
+        "state": {
+          "battery": "Battery",
+          "solar_panel": "Solar panel"
+        }
+      },
+      "alarm_tone": {
+        "name": "Alarm tone",
+        "state": {
+          "tone_1": "Tone 1",
+          "tone_2": "Tone 2"
+        }
+      },
+      "time_format": {
+        "name": "Time format",
+        "state": {
+          "12h": "12 hours",
+          "24h": "24 hours"
+        }
+      }
+    },
+    "switch": {
+      "enabled": {
+        "name": "Camera"
+      },
+      "motion_detection": {
+        "name": "Motion detection"
+      },
+      "status_led": {
+        "name": "Status LED"
+      },
+      "microphone": {
+        "name": "Microphone"
+      },
+      "speaker": {
+        "name": "Speaker"
+      },
+      "audio_recording": {
+        "name": "Audio recording"
+      },
+      "antitheft_detection": {
+        "name": "Anti-theft detection"
+      },
+      "end_clip_motion_stops": {
+        "name": "End clip when motion stops"
+      }
+    },
+    "number": {
+      "motion_sensitivity": {
+        "name": "Motion sensitivity"
+      },
+      "clip_length": {
+        "name": "Clip length"
+      },
+      "retrigger_interval": {
+        "name": "Retrigger interval"
+      },
+      "alarm_volume": {
+        "name": "Alarm volume"
+      },
+      "prompt_volume": {
+        "name": "Prompt volume"
+      }
+    },
+    "light": {
+      "spotlight": {
+        "name": "Spotlight"
+      }
+    },
+    "siren": {
+      "siren": {
+        "name": "Siren"
       }
     }
   },
@@ -113,6 +284,18 @@
         "description": "**Cloud push – off by default**\n\nWithout it, everything this integration offers runs locally: live view with audio, new recordings as events, event images, guard mode and camera settings go directly between the bridge and the HomeBase in your network. Only the Eufy login uses the internet.\n\nWith cloud push on, the bridge also keeps a permanent connection to Google Firebase to receive Eufy's notifications. Advantage: events that tell a **person** apart from general **motion** (\"Person (cloud)\", \"Motion (cloud)\"); the HomeBase does not report this locally. Disadvantages: a permanent cloud connection, and these events stop during an internet or Eufy outage. Local events keep working either way.",
         "data": {
           "cloud_push": "Cloud push for person/motion events"
+        }
+      }
+    }
+  },
+  "services": {
+    "snooze": {
+      "name": "Snooze",
+      "description": "Pauses the camera's detection and notifications for a while; sent locally to the HomeBase.",
+      "fields": {
+        "duration": {
+          "name": "Duration",
+          "description": "How long to snooze."
         }
       }
     }

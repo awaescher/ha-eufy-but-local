@@ -35,6 +35,14 @@ LOGGED_IN_STATE: dict[str, Any] = {
             "p2p": True,
             "guardMode": 1,
             "guardModeName": "HOME",
+            "properties": {
+                "alarmVolume": 26,
+                "promptVolume": 20,
+                "alarmTone": 1,
+                "timeFormat": 1,
+                "alarm": False,
+                "softwareVersion": "3.2.4.6",
+            },
         }
     },
     "cameras": {
@@ -50,6 +58,22 @@ LOGGED_IN_STATE: dict[str, Any] = {
             "codec": None,
             "personAt": None,
             "motionAt": None,
+            "properties": {
+                "enabled": True,
+                "motionDetection": True,
+                "motionDetectionSensitivity": 5,
+                "motionDetectionType": 2,
+                "light": False,
+                "lightSettingsBrightnessManual": 100,
+                "nightvision": 1,
+                "statusLed": False,
+                "speakerVolume": 93,
+                "recordingClipLength": 60,
+                "wifiRssi": -64,
+                "batteryTemperature": 15,
+                "chargingStatus": 0,
+                "softwareVersion": "2.2.0.5",
+            },
         }
     },
 }
@@ -70,6 +94,8 @@ class FakeBridge:
         self.guard_requests: list[tuple[str, str]] = []
         self.config_requests: list[dict[str, Any]] = []
         self.reject_config = False
+        self.property_writes: list[tuple[str, str, str, Any]] = []
+        self.commands: list[tuple[str, str, dict[str, Any]]] = []
         self.images: dict[str, bytes] = {CAM: JPEG}
         self.image_requests = 0
         self.reject_guard = False
@@ -161,6 +187,20 @@ class FakeBridge:
             self.state.update(phase="error", message="wrong code")
         return web.json_response({"ok": True}, status=202)
 
+    async def _property(self, request: web.Request) -> web.Response:
+        kind, sn = request.match_info["kind"], request.match_info["sn"]
+        body = await request.json()
+        self.property_writes.append((kind, sn, body["name"], body["value"]))
+        target = self.state["cameras" if kind == "device" else "stations"][sn]
+        target["properties"][body["name"]] = body["value"]
+        self.push_state()
+        return web.json_response({"returnCode": 0, "ms": 300})
+
+    async def _command(self, request: web.Request) -> web.Response:
+        body = await request.json()
+        self.commands.append((request.match_info["kind"], request.match_info["sn"], body))
+        return web.json_response({"returnCode": 0, "ms": 300})
+
     async def _config(self, request: web.Request) -> web.Response:
         if self.reject_config:
             return web.json_response({"error": "not found"}, status=404)
@@ -196,6 +236,8 @@ class FakeBridge:
         app.router.add_get("/api/image/{sn}", self._image)
         app.router.add_post("/api/station/{sn}/guard", self._guard)
         app.router.add_post("/api/config", self._config)
+        app.router.add_post("/api/{kind}/{sn}/property", self._property)
+        app.router.add_post("/api/{kind}/{sn}/command", self._command)
         self.server = TestServer(app, host="127.0.0.1", port=port)
         await self.server.start_server()
 

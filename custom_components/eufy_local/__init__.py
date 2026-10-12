@@ -6,26 +6,50 @@ HomeBase. Only tested with HomeBase 2 (T8010).
 
 from __future__ import annotations
 
+from homeassistant.components.camera import DOMAIN as CAMERA_DOMAIN
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import config_validation as cv, device_registry as dr, service
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
+import voluptuous as vol
 
 from .api import BridgeClient, BridgeError
-from .const import CONF_CLOUD_PUSH, CONF_TOKEN
+from .const import CONF_CLOUD_PUSH, CONF_TOKEN, DOMAIN
 from .coordinator import EufyLocalConfigEntry, EufyLocalCoordinator
 from .entity import station_device_info
 
 PLATFORMS: list[Platform] = [
     Platform.ALARM_CONTROL_PANEL,
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.CAMERA,
     Platform.EVENT,
     Platform.IMAGE,
+    Platform.LIGHT,
+    Platform.NUMBER,
     Platform.SELECT,
     Platform.SENSOR,
+    Platform.SIREN,
+    Platform.SWITCH,
 ]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+SERVICE_SNOOZE = "snooze"
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the integration's actions."""
+    service.async_register_platform_entity_service(
+        hass,
+        DOMAIN,
+        SERVICE_SNOOZE,
+        entity_domain=CAMERA_DOMAIN,
+        schema={vol.Required("duration"): cv.positive_time_period},
+        func="async_snooze",
+    )
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EufyLocalConfigEntry) -> bool:
