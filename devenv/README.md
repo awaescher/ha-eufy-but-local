@@ -26,6 +26,41 @@ log in again with code `123456`.
 
 Everything Home Assistant writes to `config/` is git-ignored except `configuration.yaml`.
 
+## Testing real cameras with this Home Assistant
+
+The bridge for the real HomeBase runs **natively on the Mac**, not in Docker: under Docker Desktop
+a container is not on your LAN, so the local P2P discovery (UDP broadcast) would not reach the
+HomeBase. The Home Assistant container reaches the native bridge at `host.docker.internal`.
+
+Prerequisites: the Mac is on the same network as the HomeBase, and a secondary Eufy account has
+the HomeBase shared with admin rights (see the main README).
+
+```bash
+cd bridge
+npm ci
+mkdir -p data && [ -f data/token ] || openssl rand -hex 24 > data/token   # once
+BRIDGE_PORT=3081 BRIDGE_TOKEN="$(cat data/token)" DATA_DIR=./data node server.mjs
+```
+
+Port 3081 keeps it apart from the simulator on 3080; `bridge/data/` (session, credentials,
+token) is git-ignored. On the first start macOS may ask whether the terminal may access devices
+on the local network, and whether `node` may accept incoming connections: allow both, P2P
+needs them.
+
+Then in Home Assistant: *Add integration → HALEC*, host `host.docker.internal`, port `3081`,
+the token from `bridge/data/token`. Log in with the secondary account and enter the code Eufy
+sends. The real HomeBase appears as a second entry next to the simulated one.
+
+What to look at, in this order (record results in `docs/STATUS.md`):
+
+1. Bridge log: login, device list, `P2P connected … (LAN only)`.
+2. Walk past a camera: does "Stored events" rise and "Event (local)" turn on?
+3. Does "Last event image" show the new thumbnail?
+4. Live view of one camera (HLS works here; WebRTC needs a real HA install, see below).
+   `.venv/bin/python devenv/stream_probe.py "http://127.0.0.1:3081/api/stream/<sn>?token=<token>"`
+   checks the stream without the browser.
+5. Switch the guard mode from Home Assistant and check it in the Eufy app.
+
 ## Checking the live view without Home Assistant
 
 `stream_probe.py` runs Home Assistant's real stream worker against a bridge stream URL and
