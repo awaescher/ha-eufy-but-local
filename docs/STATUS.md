@@ -30,32 +30,21 @@ Not yet verified on hardware:
 | `tests/test_config_flow.py` | 12 passing | |
 | `tests/test_init.py` | 6 passing | |
 | `tests/test_entities.py` | 14 passing | |
+| `tests/test_api.py` | 12 passing | `BridgeClient`: SSE parsing, error mapping (100 % of `api.py`) |
 
-Python suites run against Home Assistant 2026.10.1 (Python 3.14), 96 % line coverage.
+Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line coverage.
 `ruff check` and `ruff format --check` are clean.
 
 ## Open work, in priority order
 
-1. **Fix hanging `tests/test_entities.py`.** Probable cause: the `freezer` fixture
-   (freezegun) also freezes the clock used by the asyncio loop, so `wait_for()` in
-   `tests/conftest.py` (which sleeps and checks `loop.time()`) never progresses in tests that
-   request `freezer`. Options: drop `freezer` where only real-time waits are needed; in
-   `test_local_recording` push the state, wait, and only then use `freezer.tick()` with
-   `async_fire_time_changed`; or replace `wait_for` with `hass.async_block_till_done()` plus a
-   short bounded loop. Run with `pytest -x -v --timeout 20` (install `pytest-timeout`).
-   Also clean up two sloppy spots in that file: the no-op `wait_for(lambda: hass.data and True)`
-   lines in `test_camera_image_is_cached_until_a_new_thumbnail`, and the pointless
-   `now.replace(microsecond=...)` in `test_local_recording`.
-2. Add `tests/test_api.py` for `BridgeClient`: SSE parsing (multi-line data, comments,
-   malformed JSON), HTTP error mapping (401 -> `BridgeAuthError`, 5xx -> `BridgeError`).
-3. Verify that Home Assistant can play `stream_source()` (raw H.264 over HTTP) with both the
+1. Verify that Home Assistant can play `stream_source()` (raw H.264 over HTTP) with both the
    `stream` component (PyAV) and the built-in go2rtc. If either cannot probe raw Annex-B,
    have the bridge serve MPEG-TS or fMP4 instead (ADR 0006).
-4. Dev environment: `devenv/docker-compose.yml` with Home Assistant (custom component
+2. Dev environment: `devenv/docker-compose.yml` with Home Assistant (custom component
    mounted) and the bridge in simulator mode, plus a short `devenv/README.md`.
-5. CI (GitHub Actions): `hassfest`, HACS validation, `pytest`, `npm test`, `ruff`.
-6. Publish the bridge image (GHCR, multi-arch amd64/arm64).
-7. Real-hardware validation of everything listed above, then update this file and the README.
+3. CI (GitHub Actions): `hassfest`, HACS validation, `pytest`, `npm test`, `ruff`.
+4. Publish the bridge image (GHCR, multi-arch amd64/arm64).
+5. Real-hardware validation of everything listed above, then update this file and the README.
 
 ## Known risks
 
