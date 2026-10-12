@@ -119,6 +119,48 @@ export class EufyConnector {
     else await this.client.connect({ captcha: { captchaId: pending.captchaId, captchaCode: code }, force: false });
   }
 
+  /** Everything the library knows about a device: property values, writable ones, commands. */
+  async deviceInfo(sn) {
+    if (!this.client) throw new Error("Not connected");
+    const device = await this.client.getDevice(sn);
+    const metadata = device.getPropertiesMetadata();
+    return {
+      properties: device.getProperties(),
+      writable: Object.keys(metadata).filter((name) => metadata[name].writeable),
+      commands: device.getCommands(),
+    };
+  }
+
+  /**
+   * Recordings in the HomeBase database (P2P, local) between `start` and `end`; the station
+   * answers with at most 20 records per query.
+   */
+  async stationEvents(stationSn, start, end, timeoutMs = 15_000) {
+    if (!this.client) throw new Error("Not connected");
+    const station = await this.client.getStation(stationSn);
+    const serials = Object.entries(this.state.cameras)
+      .filter(([, cam]) => cam.station === stationSn)
+      .map(([sn]) => sn);
+    return new Promise((resolve, reject) => {
+      const client = this.client;
+      const done = () => {
+        clearTimeout(timer);
+        client.removeListener("station database query local", onAnswer);
+      };
+      const onAnswer = (st, returnCode, records) => {
+        if (st.getSerial() !== stationSn) return;
+        done();
+        resolve({ returnCode, records });
+      };
+      const timer = setTimeout(() => {
+        done();
+        reject(new Error("the HomeBase did not answer the database query"));
+      }, timeoutMs);
+      client.on("station database query local", onAnswer);
+      station.databaseQueryLocal(serials, start, end);
+    });
+  }
+
   async setGuardMode(stationSn, mode) {
     const value = this.guardModeValue(mode);
     if (value === undefined) throw new RangeError(`Unknown guard mode: ${mode}`);

@@ -97,6 +97,8 @@ docs/                   STATUS.md, architecture.md, offline-test-plan.md, adr/
 | GET | `/api/image/{sn}` | latest event thumbnail (JPEG) or 404 |
 | GET | `/api/stream/{sn}[.ts\|.h264]` | MPEG-TS (H.264 + AAC) or `.h264` raw video; first viewer wakes the camera; 409 while displaced by another camera of the station |
 | POST | `/api/station/{sn}/guard` | `{mode}`: `AWAY`, `HOME`, `DISARMED`, … |
+| GET | `/api/device/{sn}/properties` | diagnostics: library property values, writable names, commands |
+| GET | `/api/station/{sn}/events?hours=24` | diagnostics: local event records from the HomeBase database (P2P) |
 | POST | `/api/simulator/{sn}/event` | simulator only |
 
 Auth: `Authorization: Bearer <BRIDGE_TOKEN>` or `?token=` (needed for stream URLs).

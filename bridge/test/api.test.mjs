@@ -244,6 +244,21 @@ describe("bridge API (simulated HomeBase)", () => {
     await until(() => !b.state.cameras[CAM2].live);
   });
 
+  it("reports device properties and the local event list for diagnosis", async () => {
+    const info = await (await b.api(`/api/device/${CAM}/properties`)).json();
+    assert.equal(info.properties.battery, SIM_CAMERAS[0].battery);
+    assert.deepEqual(info.writable, ["motionDetection", "motionDetectionSensitivity"]);
+    assert.ok(info.commands.includes("deviceStartLivestream"));
+    assert.equal((await b.api("/api/device/UNKNOWN/properties")).status, 404);
+
+    const events = await (await b.api(`/api/station/${SIM_STATION}/events?hours=6`)).json();
+    assert.equal(events.returnCode, 0);
+    assert.deepEqual(events.records.map((r) => r.device_sn).sort(), SIM_CAMERAS.map((c) => c.sn).sort());
+    assert.equal(events.records[0].picture[0].detection_type, 2);
+    assert.equal((await b.api(`/api/station/${SIM_STATION}/events?hours=0`)).status, 400);
+    assert.equal((await b.api("/api/station/NOPE/events")).status, 404);
+  });
+
   it("rejects streams for unknown cameras", async () => {
     assert.equal((await b.api("/api/stream/UNKNOWN")).status, 404);
   });

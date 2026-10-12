@@ -9,6 +9,8 @@
 //   GET  /api/image/:sn                  latest event thumbnail (local)
 //   GET  /api/stream/:sn[.ts|.h264]      livestream (starts camera): MPEG-TS with audio, or raw H.264
 //   POST /api/station/:sn/guard {mode}   AWAY | HOME | DISARMED | ...
+//   GET  /api/device/:sn/properties      diagnostics: library properties of a device
+//   GET  /api/station/:sn/events?hours=  diagnostics: local event records (HomeBase database)
 //   POST /api/simulator/:sn/event        simulator only: trigger an event
 
 import http from "node:http";
@@ -135,6 +137,22 @@ export function createApi({ state, connector, credentials, simulator = null, tok
       };
       req.on("close", () => connector.live.removeViewer(sn, viewer));
       await connector.live.addViewer(sn, viewer);
+    },
+
+    // Read-only diagnostics: what the library knows about a device, and the local event list.
+    "GET device": async ({ res, id, action }) => {
+      if (action !== "properties") return send(res, 404, { error: "not found" });
+      if (!state.cameras[id]) return send(res, 404, { error: "unknown camera" });
+      return send(res, 200, await connector.deviceInfo(id));
+    },
+
+    "GET station": async ({ res, id, action, url }) => {
+      if (action !== "events") return send(res, 404, { error: "not found" });
+      if (!state.stations[id]) return send(res, 404, { error: "unknown station" });
+      const hours = Number(url.searchParams.get("hours") ?? 24);
+      if (!Number.isFinite(hours) || hours <= 0 || hours > 24 * 31) return send(res, 400, { error: "hours: 1..744" });
+      const end = new Date();
+      return send(res, 200, await connector.stationEvents(id, new Date(end - hours * 3_600_000), end));
     },
 
     "POST station": async ({ req, res, id, action }) => {

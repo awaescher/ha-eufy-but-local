@@ -126,6 +126,19 @@ describe("EufyConnector", () => {
     assert.deepEqual(events, []);
   });
 
+  it("gives up on a database query the HomeBase does not answer, ignoring other stations", async () => {
+    const { connector, clients } = setup();
+    await connector.start({ email: "a", password: "b" });
+    const st = { ...station("S1"), databaseQueryLocal() { this.asked = true; } };
+    clients[0].getStation = async () => st;
+    const pending = connector.stationEvents("S1", new Date(0), new Date(), 30);
+    await tick();
+    clients[0].emit("station database query local", station("OTHER"), 0, []);
+    await assert.rejects(pending, /did not answer/);
+    assert.equal(st.asked, true);
+    assert.equal(clients[0].listenerCount("station database query local"), 0, "listener removed");
+  });
+
   it("translates guard modes and rejects unknown ones", async () => {
     const { connector } = setup();
     assert.equal(connector.guardModeValue("away"), GuardMode.AWAY);

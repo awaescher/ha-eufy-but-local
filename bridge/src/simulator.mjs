@@ -84,6 +84,19 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
       const rows = cameras.map((c) => ({ device_sn: c.sn, event_count: c.count, crop_local_path: `/media/${c.sn}/${c.count}.jpg` }));
       setTimeout(() => instance?.emit("station database query latest", station, 0, rows), 5);
     },
+    // Shape of eufy-security-client's DatabaseQueryLocal; one person recording per camera.
+    databaseQueryLocal(serials, start, end) {
+      const records = cameras
+        .filter((c) => serials.includes(c.sn))
+        .map((c, i) => ({
+          record_id: 1000 + i,
+          station_sn: SIM_STATION,
+          device_sn: c.sn,
+          history: { start_time: end, end_time: end, trigger_type: 1, storage_path: `/media/${c.sn}/${c.count}.dat`, thumb_path: `/media/${c.sn}/${c.count}.jpg` },
+          picture: [{ detection_type: 2, crop_path: `/media/${c.sn}/${c.count}.jpg`, event_time: end }],
+        }));
+      setTimeout(() => instance?.emit("station database query local", station, 0, records), 5);
+    },
     downloadImage(path) {
       const sn = path.split("/")[2];
       setTimeout(() => instance?.emit("station image download", station, path, { data: images[sn], type: imageType(sn) }), 10);
@@ -99,6 +112,13 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     isCamera: () => true,
     hasProperty: (n) => n === PropertyName.DeviceBattery,
     getPropertyValue: (n) => (n === PropertyName.DeviceBattery ? c.battery : undefined),
+    getProperties: () => ({ battery: c.battery, motionDetection: true, motionDetectionSensitivity: 4 }),
+    getPropertiesMetadata: () => ({
+      battery: { name: "battery", writeable: false },
+      motionDetection: { name: "motionDetection", writeable: true },
+      motionDetectionSensitivity: { name: "motionDetectionSensitivity", writeable: true },
+    }),
+    getCommands: () => ["deviceStartLivestream", "deviceStopLivestream"],
   }));
 
   const streams = new Map(); // sn -> { timer, readable }
@@ -117,6 +137,17 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     }
 
     setCameraMaxLivestreamDuration() {}
+
+    async getDevice(sn) {
+      const device = devices.find((d) => d.getSerial() === sn);
+      if (!device) throw new Error(`unknown device ${sn}`);
+      return device;
+    }
+
+    async getStation(sn) {
+      if (sn !== SIM_STATION) throw new Error(`unknown station ${sn}`);
+      return station;
+    }
 
     async connect(options = {}) {
       if (!this.authenticated) {
