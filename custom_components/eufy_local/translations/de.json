@@ -61,6 +61,9 @@
       },
       "p2p_local": {
         "name": "Lokale P2P-Verbindung"
+      },
+      "alarm": {
+        "name": "Alarm"
       }
     },
     "event": {
@@ -70,7 +73,7 @@
           "event_type": {
             "state": {
               "local_recording": "Neue Aufnahme (lokal)",
-              "person": "Person (Cloud)",
+              "person": "Person",
               "motion": "Bewegung (Cloud)"
             }
           }
@@ -88,6 +91,37 @@
       },
       "event_count": {
         "name": "Gespeicherte Ereignisse"
+      },
+      "wifi_rssi": {
+        "name": "WLAN-Signal"
+      },
+      "battery_temperature": {
+        "name": "Akkutemperatur"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "battery_usage_last_week": {
+        "name": "Akkuverbrauch letzte Woche"
+      },
+      "days_since_charging": {
+        "name": "Tage seit dem Laden"
+      },
+      "recorded_events_since_charging": {
+        "name": "Aufnahmen seit dem Laden"
+      },
+      "total_events_since_charging": {
+        "name": "Ereignisse seit dem Laden"
+      },
+      "lan_ip": {
+        "name": "LAN-IP-Adresse"
+      },
+      "charging_status": {
+        "name": "Ladestatus",
+        "state": {
+          "not_charging": "Lädt nicht",
+          "charging": "Lädt"
+        }
       }
     },
     "select": {
@@ -103,6 +137,143 @@
           "custom3": "Benutzerdefiniert 3",
           "disarmed": "Deaktiviert"
         }
+      },
+      "motion_detection_type": {
+        "name": "Erkennungsart",
+        "state": {
+          "humans_only": "Nur Menschen",
+          "all_motions": "Alle Bewegungen"
+        }
+      },
+      "night_vision": {
+        "name": "Nachtsicht",
+        "state": {
+          "off": "Aus",
+          "infrared": "Infrarot",
+          "color": "Farbe (Strahler)"
+        }
+      },
+      "speaker_volume": {
+        "name": "Lautsprecher-Lautstärke",
+        "state": {
+          "low": "Leise",
+          "medium": "Mittel",
+          "high": "Laut"
+        }
+      },
+      "power_mode": {
+        "name": "Energiemodus",
+        "state": {
+          "optimal_battery": "Optimale Akkulaufzeit",
+          "optimal_surveillance": "Optimale Überwachung",
+          "custom": "Benutzerdefiniert"
+        }
+      },
+      "streaming_quality": {
+        "name": "Streaming-Qualität",
+        "state": {
+          "auto": "Automatisch",
+          "low": "Niedrig",
+          "medium": "Mittel",
+          "high": "Hoch"
+        }
+      },
+      "recording_quality": {
+        "name": "Aufnahmequalität",
+        "state": {
+          "2k": "2K",
+          "full_hd": "Full HD (1080p)"
+        }
+      },
+      "watermark": {
+        "name": "Wasserzeichen",
+        "state": {
+          "off": "Aus",
+          "timestamp": "Zeitstempel",
+          "timestamp_and_logo": "Zeitstempel und Logo"
+        }
+      },
+      "notification_type": {
+        "name": "Eufy-App-Benachrichtigung",
+        "state": {
+          "most_efficient": "Am effizientesten",
+          "include_thumbnail": "Mit Vorschaubild",
+          "full_effect": "Vollständig"
+        }
+      },
+      "power_source": {
+        "name": "Stromquelle",
+        "state": {
+          "battery": "Akku",
+          "solar_panel": "Solarpanel"
+        }
+      },
+      "alarm_tone": {
+        "name": "Alarmton",
+        "state": {
+          "tone_1": "Ton 1",
+          "tone_2": "Ton 2"
+        }
+      },
+      "time_format": {
+        "name": "Zeitformat",
+        "state": {
+          "12h": "12 Stunden",
+          "24h": "24 Stunden"
+        }
+      }
+    },
+    "switch": {
+      "enabled": {
+        "name": "Kamera"
+      },
+      "motion_detection": {
+        "name": "Bewegungserkennung"
+      },
+      "status_led": {
+        "name": "Status-LED"
+      },
+      "microphone": {
+        "name": "Mikrofon"
+      },
+      "speaker": {
+        "name": "Lautsprecher"
+      },
+      "audio_recording": {
+        "name": "Tonaufnahme"
+      },
+      "antitheft_detection": {
+        "name": "Diebstahlerkennung"
+      },
+      "end_clip_motion_stops": {
+        "name": "Aufnahme bei Bewegungsende beenden"
+      }
+    },
+    "number": {
+      "motion_sensitivity": {
+        "name": "Bewegungsempfindlichkeit"
+      },
+      "clip_length": {
+        "name": "Aufnahmelänge"
+      },
+      "retrigger_interval": {
+        "name": "Wartezeit bis zur nächsten Aufnahme"
+      },
+      "alarm_volume": {
+        "name": "Alarm-Lautstärke"
+      },
+      "prompt_volume": {
+        "name": "Ansage-Lautstärke"
+      }
+    },
+    "light": {
+      "spotlight": {
+        "name": "Strahler"
+      }
+    },
+    "siren": {
+      "siren": {
+        "name": "Sirene"
       }
     }
   },
@@ -113,6 +284,18 @@
         "description": "**Cloud-Push – standardmäßig aus**\n\nOhne Cloud-Push läuft alles, was diese Integration bietet, lokal: Livebild mit Ton, neue Aufnahmen als Ereignis, Ereignisbilder, Alarmmodus und Kamera-Einstellungen gehen direkt zwischen Brücke und HomeBase in deinem Netz. Nur die Eufy-Anmeldung nutzt das Internet.\n\nMit Cloud-Push hält die Brücke zusätzlich eine dauerhafte Verbindung zu Google Firebase, um Eufys Benachrichtigungen zu empfangen. Vorteil: Ereignisse, die eine **Person** von allgemeiner **Bewegung** unterscheiden („Person (Cloud)“, „Bewegung (Cloud)“); lokal meldet die HomeBase das nicht. Nachteile: eine dauerhafte Cloud-Verbindung, und diese Ereignisse fallen bei einem Internet- oder Eufy-Ausfall weg. Die lokalen Ereignisse funktionieren in beiden Fällen.",
         "data": {
           "cloud_push": "Cloud-Push für Person/Bewegung"
+        }
+      }
+    }
+  },
+  "services": {
+    "snooze": {
+      "name": "Schlummern",
+      "description": "Pausiert Erkennung und Benachrichtigungen der Kamera für eine Weile; wird lokal an die HomeBase geschickt.",
+      "fields": {
+        "duration": {
+          "name": "Dauer",
+          "description": "Wie lange geschlummert wird."
         }
       }
     }

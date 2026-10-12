@@ -4,11 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import BridgeError
 from .const import DOMAIN, MANUFACTURER
 from .coordinator import EufyLocalCoordinator
+
+
+async def _run(call: Any, what: str) -> None:
+    try:
+        await call
+    except BridgeError as err:
+        raise HomeAssistantError(f"Could not {what}: {err}") from err
 
 
 def station_device_info(station_sn: str, station: dict[str, Any]) -> DeviceInfo:
@@ -41,6 +50,18 @@ class EufyStationEntity(CoordinatorEntity[EufyLocalCoordinator]):
     @property
     def available(self) -> bool:
         return super().available and self.station_sn in self.coordinator.stations
+
+    @property
+    def props(self) -> dict[str, Any]:
+        return self.station.get("properties") or {}
+
+    async def _set(self, name: str, value: Any) -> None:
+        client = self.coordinator.client
+        await _run(client.set_property("station", self.station_sn, name, value), f"set {name}")
+
+    async def _command(self, name: str, seconds: int | None = None) -> None:
+        client = self.coordinator.client
+        await _run(client.command("station", self.station_sn, name, seconds), name)
 
 
 class EufyCameraEntity(CoordinatorEntity[EufyLocalCoordinator]):
@@ -76,3 +97,15 @@ class EufyCameraEntity(CoordinatorEntity[EufyLocalCoordinator]):
     @property
     def available(self) -> bool:
         return super().available and self.device_sn in self.coordinator.cameras
+
+    @property
+    def props(self) -> dict[str, Any]:
+        return self.cam.get("properties") or {}
+
+    async def _set(self, name: str, value: Any) -> None:
+        client = self.coordinator.client
+        await _run(client.set_property("device", self.device_sn, name, value), f"set {name}")
+
+    async def _command(self, name: str, seconds: int | None = None) -> None:
+        client = self.coordinator.client
+        await _run(client.command("device", self.device_sn, name, seconds), name)

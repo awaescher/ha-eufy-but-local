@@ -1,0 +1,12 @@
+snooze:
+  target:
+    entity:
+      integration: eufy_local
+      domain: camera
+  fields:
+    duration:
+      required: true
+      default:
+        minutes: 30
+      selector:
+        duration:

@@ -29,6 +29,11 @@ async def async_setup_entry(
         EufyLocalActivity(coordinator, sn) for sn in coordinator.cameras
     ]
     entities += [EufyP2PConnected(coordinator, sn) for sn in coordinator.stations]
+    entities += [
+        EufyStationAlarm(coordinator, sn)
+        for sn, station in coordinator.stations.items()
+        if "alarm" in (station.get("properties") or {})
+    ]
     async_add_entities(entities)
 
 
@@ -102,3 +107,18 @@ class EufyP2PConnected(EufyStationEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, object]:
         return {"cloud_connected": bool((self.coordinator.data or {}).get("cloud"))}
+
+
+class EufyStationAlarm(EufyStationEntity, BinarySensorEntity):
+    """On while the HomeBase sounds its alarm (reported locally over P2P)."""
+
+    _attr_translation_key = "alarm"
+    _attr_device_class = BinarySensorDeviceClass.SAFETY
+
+    def __init__(self, coordinator: EufyLocalCoordinator, station_sn: str) -> None:
+        super().__init__(coordinator, station_sn, "alarm")
+
+    @property
+    def is_on(self) -> bool | None:
+        value = self.props.get("alarm")
+        return None if value is None else bool(value)

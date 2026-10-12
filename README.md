@@ -58,6 +58,19 @@ Per camera: camera (still image = latest event thumbnail, live view on demand), 
 "Last event image", battery, last event, stored events.
 Per HomeBase: alarm panel, select "Guard mode", "Local P2P connection".
 
+Settings, all changed locally over P2P (only what a device reports is created; settings that
+only matter for Eufy's app are created disabled):
+
+- Camera: on/off, motion detection, sensitivity, detection type (humans only / all motions),
+  spotlight with brightness, night vision, status LED, microphone, speaker and volume, audio
+  recording, anti-theft detection, clip length, retrigger interval, power mode, streaming and
+  recording quality (2C Pro), siren; diagnostics: Wi-Fi signal, battery temperature, charging,
+  firmware. Action `eufy_local.snooze`.
+- HomeBase: alarm volume, prompt volume, alarm tone, siren, alarm sensor, restart, firmware.
+
+A camera set to detect humans only reports each new local recording also as a `person` event
+(source `local`).
+
 The alarm panel offers Home Assistant's fixed states. Eufy modes without an equivalent
 (schedule, geofencing, custom 1-3) show as "armed custom bypass"; the select "Guard mode" shows
 and sets every Eufy mode by its own name.

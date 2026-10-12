@@ -87,6 +87,19 @@ class BridgeClient:
     async def submit_code(self, code: str) -> None:
         await self._request("POST", "/api/code", {"code": code})
 
+    async def set_property(self, kind: str, sn: str, name: str, value: Any) -> None:
+        """Write a property of a camera (`kind` "device") or HomeBase ("station") over P2P."""
+        await self._request(
+            "POST", f"/api/{kind}/{sn}/property", {"name": name, "value": value}, timeout=20
+        )
+
+    async def command(self, kind: str, sn: str, name: str, seconds: int | None = None) -> None:
+        """Run a P2P command: siren (`alarm`, `stopAlarm`), `snooze`, `reboot`."""
+        payload: dict[str, Any] = {"name": name}
+        if seconds is not None:
+            payload["seconds"] = seconds
+        await self._request("POST", f"/api/{kind}/{sn}/command", payload, timeout=20)
+
     async def set_config(self, *, cloud_push: bool) -> None:
         await self._request("POST", "/api/config", {"cloudPush": cloud_push})
 

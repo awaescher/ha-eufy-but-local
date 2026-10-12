@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import timedelta
 
 from freezegun.api import FrozenDateTimeFactory
@@ -34,19 +35,23 @@ async def test_setup_creates_devices_and_entities(
     assert camera.via_device_id == station.id
 
     entities = er.async_entries_for_config_entry(er.async_get(hass), setup_integration.entry_id)
-    platforms = sorted(e.domain for e in entities)
-    assert platforms == [
-        "alarm_control_panel",
-        "binary_sensor",
-        "binary_sensor",
-        "camera",
-        "event",
-        "image",
-        "select",
-        "sensor",
-        "sensor",
-        "sensor",
-    ]
+    assert Counter(e.domain for e in entities) == {
+        "alarm_control_panel": 1,
+        "binary_sensor": 3,
+        "button": 1,
+        "camera": 1,
+        "event": 1,
+        "image": 1,
+        "light": 1,
+        "number": 4,
+        "select": 6,
+        "sensor": 8,
+        "siren": 2,
+        "switch": 3,
+    }
+    # Settings that only matter for the Eufy app are created disabled.
+    disabled = {e.entity_id for e in entities if e.disabled_by}
+    assert disabled == {"select.homebase_2_time_format"}
 
 
 async def test_not_ready_when_bridge_is_down(
