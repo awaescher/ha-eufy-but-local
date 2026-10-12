@@ -15,7 +15,8 @@ from .api import BridgeError
 from .coordinator import EufyLocalConfigEntry, EufyLocalCoordinator
 from .entity import EufyStationEntity
 
-# Eufy guard modes without an equivalent (SCHEDULE, GEO) map to an unknown state.
+# HA's alarm states are fixed. Armed modes without an equivalent (custom modes, schedule,
+# geofencing) map to "armed custom bypass"; the exact Eufy mode is in the eufy_mode attribute.
 STATE_MAP: dict[str, AlarmControlPanelState] = {
     "AWAY": AlarmControlPanelState.ARMED_AWAY,
     "HOME": AlarmControlPanelState.ARMED_HOME,
@@ -24,6 +25,8 @@ STATE_MAP: dict[str, AlarmControlPanelState] = {
     "CUSTOM1": AlarmControlPanelState.ARMED_CUSTOM_BYPASS,
     "CUSTOM2": AlarmControlPanelState.ARMED_CUSTOM_BYPASS,
     "CUSTOM3": AlarmControlPanelState.ARMED_CUSTOM_BYPASS,
+    "SCHEDULE": AlarmControlPanelState.ARMED_CUSTOM_BYPASS,
+    "GEO": AlarmControlPanelState.ARMED_CUSTOM_BYPASS,
 }
 
 

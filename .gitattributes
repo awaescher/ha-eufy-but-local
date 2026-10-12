@@ -3,5 +3,7 @@
 *.h264 binary
 *.jpg binary
 *.png binary
+*.v2 binary
+*.bin binary
 
 bridge/package-lock.json linguist-generated=true -diff

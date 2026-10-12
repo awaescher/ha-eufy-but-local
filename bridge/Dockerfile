@@ -6,6 +6,7 @@ RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY server.mjs ./
 COPY src ./src
 COPY simulator-assets ./simulator-assets
+COPY third-party ./third-party
 
 ENV DATA_DIR=/data \
     BRIDGE_PORT=3080

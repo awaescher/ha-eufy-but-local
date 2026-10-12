@@ -5,6 +5,7 @@
 // livestream, guard mode. Cloud: login + device list on start, optional
 // person/motion push notifications.
 
+import { decodeImageV2, isV2Image } from "./image-v2.mjs";
 import { ImageStore } from "./images.mjs";
 import { LiveStreams } from "./live.mjs";
 
@@ -38,6 +39,7 @@ export class EufyConnector {
       idleMs: config.liveIdleSeconds * 1000,
       onChange: (sn, live) => this.state.upsertCamera(sn, { live }),
       log: (m) => this.log("local", m),
+      stationOf: (sn) => this.state.cameras[sn]?.station ?? sn,
     });
   }
 
@@ -217,8 +219,16 @@ export class EufyConnector {
     });
 
     c.on("station image download", (_st, path, image) => {
-      const sn = this.images.received(path, image?.data, image?.type?.mime);
-      if (sn) {
+      let data = image?.data;
+      let mime = image?.type?.mime;
+      // The library decrypts the older "eufysecurity:" format only and hands v2 over as is.
+      if (data && isV2Image(data)) {
+        data = decodeImageV2(data);
+        mime = "image/jpeg";
+        if (!data) this.log("local", `could not decode v2 thumbnail ${path}`);
+      }
+      const sn = this.images.received(path, data, mime);
+      if (sn && data) {
         s.upsertCamera(sn, { imageAt: new Date().toISOString() });
         s.publish({ type: "image", device_sn: sn });
       }

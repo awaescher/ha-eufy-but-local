@@ -21,7 +21,8 @@ export const SIM_STATION = "T8010SIM0000001";
 export const SIM_CAMERAS = Object.freeze([
   { sn: "T8113SIM0000001", name: "Front door", model: "T8113", image: "cam1.jpg", battery: 87, count: 120 },
   { sn: "T8113SIM0000002", name: "Garden", model: "T8113", image: "cam2.jpg", battery: 55, count: 42 },
-  { sn: "T8142SIM0000003", name: "Garage", model: "T8142", image: "cam3.jpg", battery: 19, count: 7 },
+  // Garage delivers the newer v2 thumbnail format, like real HomeBase 2 units do.
+  { sn: "T8142SIM0000003", name: "Garage", model: "T8142", image: "cam3.v2", battery: 19, count: 7 },
 ]);
 
 /**
@@ -52,6 +53,10 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
   const video = readFileSync(join(ASSETS, "stream.h264"));
   const frames = splitFrames(video);
   const images = Object.fromEntries(SIM_CAMERAS.map((c) => [c.sn, readFileSync(join(ASSETS, c.image))]));
+  const imageType = (sn) =>
+    SIM_CAMERAS.find((c) => c.sn === sn)?.image.endsWith(".v2")
+      ? { ext: "unknown", mime: "application/octet-stream" }
+      : { ext: "jpg", mime: "image/jpeg" };
   let instance = null;
 
   const station = {
@@ -66,7 +71,7 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     },
     downloadImage(path) {
       const sn = path.split("/")[2];
-      setTimeout(() => instance?.emit("station image download", station, path, { data: images[sn], type: { ext: "jpg", mime: "image/jpeg" } }), 10);
+      setTimeout(() => instance?.emit("station image download", station, path, { data: images[sn], type: imageType(sn) }), 10);
     },
   };
 
@@ -134,6 +139,8 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
       const device = devices.find((d) => d.getSerial() === sn);
       if (!device) throw new Error(`unknown device ${sn}`);
       if (streams.has(sn)) throw new Error("already streaming");
+      // The HomeBase streams one camera at a time and switches to the newest request.
+      for (const other of [...streams.keys()]) await this.stopStationLivestream(other);
       const readable = new Readable({ read() {} });
       let i = 0;
       const entry = { readable, timer: null };

@@ -112,6 +112,9 @@ export function createApi({ state, connector, credentials, simulator = null, tok
       const sn = String(id ?? "").replace(/\.h264$/, "");
       if (!state.cameras[sn]) return send(res, 404, { error: "unknown camera" });
       if (!connector.connected) return send(res, 503, { error: "not connected" });
+      if (!connector.live.admits(sn)) {
+        return send(res, 409, { error: "another camera of this HomeBase took over the livestream" });
+      }
       res.writeHead(200, { "content-type": "video/h264", "cache-control": "no-store", connection: "close" });
       req.on("close", () => connector.live.removeViewer(sn, res));
       await connector.live.addViewer(sn, res);

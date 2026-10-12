@@ -14,7 +14,8 @@
     "node": ">=20"
   },
   "dependencies": {
-    "eufy-security-client": "~3.8.0"
+    "eufy-security-client": "~3.8.0",
+    "jpeg-js": "0.4.4"
   },
   "author": "Andreas Wäscher",
   "repository": "github:awaescher/ha-local-eufy-cams",

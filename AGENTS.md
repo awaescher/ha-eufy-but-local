@@ -116,7 +116,8 @@ Event `type` values: `local_recording` (HomeBase database), `person` / `motion` 
 
 ## Conventions
 
-- Bridge: ESM, no build step, no runtime dependencies besides `eufy-security-client`.
+- Bridge: ESM, no build step, runtime dependencies only `eufy-security-client` and `jpeg-js`
+  (v2 thumbnails, ADR 0005). Ported third-party code is listed in `bridge/third-party/`.
   Inject collaborators (the connector receives `lib`) so tests can use the simulator.
 - Ignore late events from a replaced/closed client (see `#wire` in `eufy.mjs`); this prevented
   a real timer leak.

@@ -121,11 +121,19 @@ async def test_guard_mode_failure(hass: HomeAssistant, bridge: FakeBridge) -> No
         )
 
 
-async def test_unmapped_guard_mode(hass: HomeAssistant, bridge: FakeBridge) -> None:
+async def test_schedule_guard_mode(hass: HomeAssistant, bridge: FakeBridge) -> None:
     bridge.state["stations"][STATION]["guardModeName"] = "SCHEDULE"
     bridge.push_state()
-    await wait_for(lambda: hass.states.get(ALARM).state == STATE_UNKNOWN)
+    bypass = AlarmControlPanelState.ARMED_CUSTOM_BYPASS
+    await wait_for(lambda: hass.states.get(ALARM).state == bypass)
     assert hass.states.get(ALARM).attributes["eufy_mode"] == "SCHEDULE"
+
+
+async def test_unmapped_guard_mode(hass: HomeAssistant, bridge: FakeBridge) -> None:
+    bridge.state["stations"][STATION]["guardModeName"] = "SOMETHING_NEW"
+    bridge.push_state()
+    await wait_for(lambda: hass.states.get(ALARM).state == STATE_UNKNOWN)
+    assert hass.states.get(ALARM).attributes["eufy_mode"] == "SOMETHING_NEW"
 
 
 async def test_camera_image_is_cached_until_a_new_thumbnail(

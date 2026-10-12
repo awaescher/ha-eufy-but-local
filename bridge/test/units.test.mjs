@@ -229,6 +229,36 @@ describe("LiveStreams", () => {
     assert.deepEqual(calls.change, [["C1", true], ["C1", false]]);
   });
 
+  it("displaces the running camera of the same station and refuses it for a while", async () => {
+    let t = 1000;
+    const { live, calls } = make({ stationOf: () => "HB", switchCooldownMs: 30_000, now: () => t });
+    const first = new Sink();
+    await live.addViewer("C1", first);
+    live.started("C1");
+
+    await live.addViewer("C2", new Sink());
+    assert.equal(first.ended, true, "viewers of the displaced camera are ended");
+    assert.deepEqual(calls.stop, ["C1"]);
+    assert.deepEqual(calls.start, ["C1", "C2"]);
+
+    // Clients reconnect on their own; that must not displace the new camera right back.
+    assert.equal(live.admits("C1"), false);
+    assert.equal(live.admits("C2"), true);
+    t += 30_000;
+    assert.equal(live.admits("C1"), true);
+  });
+
+  it("does not displace cameras of another station", async () => {
+    const { live, calls } = make({ stationOf: (sn) => (sn === "C1" ? "HB1" : "HB2") });
+    const first = new Sink();
+    await live.addViewer("C1", first);
+    live.started("C1");
+    await live.addViewer("C2", new Sink());
+    assert.equal(first.ended, false);
+    assert.deepEqual(calls.stop, []);
+    assert.equal(live.admits("C1"), true);
+  });
+
   it("cleans up when starting fails", async () => {
     const { live } = make({ start: async () => { throw new Error("camera asleep"); } });
     const v = new Sink();

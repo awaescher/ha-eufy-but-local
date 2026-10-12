@@ -13,14 +13,28 @@ Verified with an earlier standalone prototype (same library and settings as `bri
 - `databaseQueryLatestInfo()` answers with per-camera event counts for all 7 cameras
   (T8113, T8142 incl. "-R"/"-V" variants); battery levels arrive.
 
+With this repository (bridge natively on macOS, Home Assistant 2026.10.1 from `devenv/`),
+2026-10-13:
+
+- Login with 2FA through the config flow; `eufy-security-client` 3.8.0 still logs in.
+- Device list: HomeBase 2 plus 7 cameras (T8113, T8113-V, T8142-R); LAN-only P2P connects.
+- Initial event counts and battery levels per camera.
+- P2P livestream of a T8113 (H.264, 1920x1080) plays in Home Assistant (HLS).
+- Thumbnails from the local database arrive, but in the `v2_eufysecurity:` format that 3.8.0
+  does not decrypt; the bridge now decodes v2 itself (ADR 0005). A real thumbnail decoded to
+  640x368 (camera: 640x360, the last 8 rows are padding).
+- The HomeBase streams one camera at a time: starting a second camera stopped the first, and
+  Home Assistant's reconnects made them displace each other. The bridge now arbitrates
+  (`bridge/src/live.mjs`); re-test on hardware.
+- Guard mode `SCHEDULE` is reported; it showed as unknown and now maps to "armed custom bypass".
+
 Not yet verified on hardware:
 
 - A rising event count when someone walks past a camera (the core "local event" claim).
-- Thumbnail download via `downloadImage()` from the local database.
-- P2P livestream of these camera models, and its playback through Home Assistant.
+- v2 thumbnails and stream switching in the running bridge (fixed after the first test).
+- Livestream of the T8142 (2C Pro) cameras; WebRTC (go2rtc) on a real HA install.
 - Guard mode switching via `setStationProperty(…, guardMode, …)`.
 - Behaviour without internet (see `offline-test-plan.md`).
-- The bridge and integration in this repository as a whole (only the prototype ran).
 
 ## Verified against the simulator in a real Home Assistant (2026.10.1, `devenv/`)
 

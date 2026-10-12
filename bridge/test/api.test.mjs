@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 
+import jpegJs from "jpeg-js";
+
 import { readConfig } from "../src/config.mjs";
 import { CredentialStore } from "../src/credentials.mjs";
 import { EufyConnector } from "../src/eufy.mjs";
@@ -140,6 +142,16 @@ describe("bridge API (simulated HomeBase)", () => {
     assert.equal((await b.api("/api/image/UNKNOWN")).status, 404);
   });
 
+  it("decodes v2 thumbnails before serving them", async () => {
+    const v2Cam = SIM_CAMERAS.find((c) => c.image.endsWith(".v2")).sn;
+    await until(() => b.state.cameras[v2Cam]?.imageAt);
+    const res = await b.api(`/api/image/${v2Cam}`);
+    assert.equal(res.headers.get("content-type"), "image/jpeg");
+    const jpeg = Buffer.from(await res.arrayBuffer());
+    const { width, height } = jpegJs.decode(jpeg);
+    assert.deepEqual([width, height], [264, 200]);
+  });
+
   it("reports a new local recording over SSE, then the cloud push", async () => {
     const res = await b.api("/api/events");
     assert.equal(res.headers.get("content-type"), "text/event-stream");
@@ -179,6 +191,36 @@ describe("bridge API (simulated HomeBase)", () => {
     assert.equal(b.state.cameras[CAM].codec, "h264");
     ctrl.abort();
     await until(() => b.state.cameras[CAM].live === false);
+  });
+
+  it("switches the HomeBase to the newest camera and refuses the displaced one", async () => {
+    const CAM2 = SIM_CAMERAS[1].sn;
+    const readSome = async (res) => {
+      const reader = res.body.getReader();
+      const { value } = await reader.read();
+      return { reader, value };
+    };
+    const first = new AbortController();
+    const one = await b.api(`/api/stream/${CAM}`, { signal: first.signal });
+    const { reader: oneReader } = await readSome(one);
+    await until(() => b.state.cameras[CAM].live);
+
+    const second = new AbortController();
+    const two = await b.api(`/api/stream/${CAM2}`, { signal: second.signal });
+    assert.equal(two.status, 200);
+    await readSome(two);
+    await until(() => b.state.cameras[CAM2].live && !b.state.cameras[CAM].live);
+
+    // The first camera's stream was ended, and reconnecting to it is refused for now.
+    let done = false;
+    while (!done) ({ done } = await oneReader.read());
+    const again = await b.api(`/api/stream/${CAM}`);
+    assert.equal(again.status, 409);
+    assert.equal(b.state.cameras[CAM2].live, true, "the refused reconnect must not displace the new camera");
+
+    second.abort();
+    first.abort();
+    await until(() => !b.state.cameras[CAM2].live);
   });
 
   it("rejects streams for unknown cameras", async () => {
