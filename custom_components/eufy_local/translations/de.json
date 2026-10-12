@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Brücke verbinden",
+        "description": "Adresse des eufy-local-bridge-Containers (im selben Netz wie die HomeBase).",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "Token (BRIDGE_TOKEN)"
+        }
+      },
+      "login": {
+        "title": "Eufy-Konto",
+        "description": "Ein Zweitkonto verwenden, mit dem die HomeBase geteilt ist (Admin-Rechte), nicht das Hauptkonto. Letzte Meldung: {message}",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "country": "Land (zweistellig, z. B. DE)"
+        }
+      },
+      "code": {
+        "title": "Bestätigungscode",
+        "description": "Eufy hat einen Bestätigungscode per E-Mail oder SMS geschickt.",
+        "data": { "code": "Code" }
+      },
+      "captcha": {
+        "title": "Captcha",
+        "description": "Zeichen aus dem Bild eingeben: ![Captcha]({captcha_url})",
+        "data": { "code": "Zeichen" }
+      },
+      "reauth_confirm": {
+        "title": "Token der Brücke",
+        "description": "Die Brücke lehnt das gespeicherte Token ab. Bitte das aktuelle BRIDGE_TOKEN eingeben.",
+        "data": { "token": "Token" }
+      }
+    },
+    "error": {
+      "cannot_connect": "Brücke nicht erreichbar.",
+      "invalid_token": "Die Brücke lehnt das Token ab.",
+      "login_failed": "Anmeldung bei Eufy fehlgeschlagen."
+    },
+    "abort": {
+      "already_configured": "Diese HomeBase ist bereits eingerichtet.",
+      "cannot_connect": "Verbindung zur Brücke verloren.",
+      "no_station": "Keine HomeBase im Konto gefunden. Ist sie mit dem Zweitkonto geteilt?",
+      "reauth_successful": "Token aktualisiert."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "local_activity": { "name": "Ereignis (lokal)" },
+      "p2p_local": { "name": "Lokale P2P-Verbindung" }
+    },
+    "event": {
+      "activity": {
+        "name": "Aktivität",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "local_recording": "Neue Aufnahme (lokal)",
+              "person": "Person (Cloud)",
+              "motion": "Bewegung (Cloud)"
+            }
+          }
+        }
+      }
+    },
+    "image": {
+      "last_event_image": { "name": "Letztes Ereignisbild" }
+    },
+    "sensor": {
+      "last_event": { "name": "Letztes Ereignis" },
+      "event_count": { "name": "Gespeicherte Ereignisse" }
+    }
+  }
+}

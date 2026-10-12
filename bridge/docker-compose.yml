@@ -1,0 +1,19 @@
+# Production setup: run next to Home Assistant, on the same LAN as the HomeBase.
+services:
+  eufy-local-bridge:
+    build: .
+    image: eufy-local-bridge:local
+    container_name: eufy-local-bridge
+    restart: unless-stopped
+    network_mode: host # required for the local UDP/P2P connection to the HomeBase
+    environment:
+      TZ: "Europe/Berlin"
+      BRIDGE_PORT: "3080"
+      # Strongly recommended. Enter the same value in the Home Assistant integration.
+      BRIDGE_TOKEN: "change-me"
+      # Optional: pin the HomeBase address (the serial is printed in the log on first start)
+      # HB_IP: "192.168.1.50"
+      # HB_SN: "T8010..."
+    volumes:
+      # Session and credentials (file mode 600). Must be writable by uid 1000 (user "node").
+      - ./data:/data

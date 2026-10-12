@@ -1,0 +1,53 @@
+# Node
+node_modules/
+npm-debug.log*
+coverage/
+
+# Bridge runtime data (Eufy session, credentials, persistent P2P keys)
+bridge/data/
+bridge/data-sim/
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+build/
+dist/
+
+# Dev environment: Home Assistant config and state created at runtime
+devenv/config/*
+!devenv/config/configuration.yaml
+
+# Local secrets and overrides
+.env
+.env.*
+!.env.example
+*.local.yml
+*.local.yaml
+docker-compose.override.yml
+credentials.json
+secrets.yaml
+
+# Logs and captures from hardware tests (may contain serials, IPs, tokens)
+*.log
+captures/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

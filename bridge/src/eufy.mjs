@@ -1,0 +1,275 @@
+// Connects to the HomeBase through eufy-security-client (or the simulator) and
+// translates its events into the bridge state.
+//
+// Local (LAN only, P2P mode ONLY_LOCAL): event database polling, thumbnails,
+// livestream, guard mode. Cloud: login + device list on start, optional
+// person/motion push notifications.
+
+import { ImageStore } from "./images.mjs";
+import { LiveStreams } from "./live.mjs";
+
+export class EufyConnector {
+  /**
+   * @param {object} opts
+   * @param {import("./state.mjs").BridgeState} opts.state
+   * @param {object} opts.config     see config.mjs
+   * @param {object} opts.lib        { EufySecurity, P2PConnectionType, GuardMode, PropertyName }
+   * @param {(tag: string, msg: string) => void} [opts.log]
+   */
+  constructor({ state, config, lib, log = () => {} }) {
+    this.state = state;
+    this.config = config;
+    this.lib = lib;
+    this.log = log;
+    this.client = null;
+    this.pending = null; // "tfa" | { captchaId }
+    this.captcha = null; // data URI
+    this.stations = new Map();
+    this.pollers = new Map();
+    this.pathStation = new Map();
+
+    this.images = new ImageStore({
+      download: (path) => this.pathStation.get(path).downloadImage(path),
+      log: (m) => this.log("local", m),
+    });
+    this.live = new LiveStreams({
+      start: (sn) => this.client.startStationLivestream(sn),
+      stop: (sn) => this.client.stopStationLivestream(sn),
+      idleMs: config.liveIdleSeconds * 1000,
+      onChange: (sn, live) => this.state.upsertCamera(sn, { live }),
+      log: (m) => this.log("local", m),
+    });
+  }
+
+  get connected() {
+    return this.client !== null;
+  }
+
+  guardModeName(mode) {
+    return mode === undefined || mode === null ? null : this.lib.GuardMode[mode] ?? String(mode);
+  }
+
+  guardModeValue(name) {
+    if (typeof name === "number") return name;
+    const v = this.lib.GuardMode[String(name ?? "").toUpperCase()];
+    return typeof v === "number" ? v : undefined;
+  }
+
+  async start(credentials) {
+    await this.close();
+    this.state.reset();
+    this.state.setPhase("connecting", "Logging in to Eufy");
+    const { EufySecurity, P2PConnectionType } = this.lib;
+    const { stationSerial, stationIp } = this.config;
+    try {
+      this.client = await EufySecurity.initialize(
+        {
+          username: credentials.email,
+          password: credentials.password,
+          country: credentials.country || "DE",
+          trustedDeviceName: "eufy-local-bridge",
+          persistentDir: this.config.dataDir,
+          p2pConnectionSetup: P2PConnectionType.ONLY_LOCAL,
+          pollingIntervalMinutes: 0, // no periodic cloud polling
+          eventDurationSeconds: 10,
+          acceptInvitations: true,
+          ...(stationSerial && stationIp ? { stationIPAddresses: { [stationSerial]: stationIp } } : {}),
+        },
+        quietLogger,
+      );
+    } catch (err) {
+      this.client = null;
+      this.state.setPhase("error", `Eufy cloud not reachable: ${err.message}`);
+      this.log("cloud", this.state.message);
+      return;
+    }
+    this.client.setCameraMaxLivestreamDuration(this.config.liveMaxSeconds);
+    this.#wire(this.client);
+    try {
+      await this.client.connect();
+    } catch (err) {
+      this.state.setPhase("error", err.message);
+    }
+  }
+
+  async submitCode(code) {
+    if (!this.client || !this.pending) throw new Error("No code requested");
+    const pending = this.pending;
+    this.pending = null;
+    this.state.setPhase("connecting", "Verifying code");
+    if (pending === "tfa") await this.client.connect({ verifyCode: code, force: false });
+    else await this.client.connect({ captcha: { captchaId: pending.captchaId, captchaCode: code }, force: false });
+  }
+
+  async setGuardMode(stationSn, mode) {
+    const value = this.guardModeValue(mode);
+    if (value === undefined) throw new RangeError(`Unknown guard mode: ${mode}`);
+    if (!this.client) throw new Error("Not connected");
+    await this.client.setStationProperty(stationSn, this.lib.PropertyName.StationGuardMode, value);
+  }
+
+  async close() {
+    for (const t of this.pollers.values()) clearInterval(t);
+    this.pollers.clear();
+    this.live.close();
+    this.images.close();
+    if (this.client) {
+      try { this.client.close(); } catch { /* ignore */ }
+    }
+    this.client = null;
+    this.pending = null;
+    this.captcha = null;
+  }
+
+  #wire(client) {
+    const { PropertyName } = this.lib;
+    const s = this.state;
+    // Ignore late events from a client that has been closed or replaced.
+    const c = { on: (name, fn) => client.on(name, (...args) => { if (this.client === client) fn(...args); }) };
+
+    // --- login
+    c.on("tfa request", () => {
+      this.pending = "tfa";
+      s.setPhase("tfa", "Verification code required");
+    });
+    c.on("captcha request", (captchaId, image) => {
+      this.pending = { captchaId };
+      this.captcha = image;
+      s.setPhase("captcha", "Captcha required");
+    });
+    c.on("connect", () => {
+      this.captcha = null;
+      s.setCloud(true);
+      s.setPhase("ok", "Logged in");
+      this.log("cloud", "login ok");
+    });
+    c.on("close", () => s.setCloud(false));
+    c.on("connection error", (err) => this.log("cloud", `error: ${err?.message ?? err}`));
+
+    // --- devices (from the cloud device list)
+    c.on("station added", (st) => {
+      this.stations.set(st.getSerial(), st);
+      const mode = st.getPropertyValue(PropertyName.StationGuardMode);
+      s.upsertStation(st.getSerial(), {
+        name: st.getName(),
+        model: st.getModel(),
+        guardMode: mode ?? null,
+        guardModeName: this.guardModeName(mode),
+      });
+      this.log("cloud", `station ${st.getName()} (${st.getSerial()}, ${st.getModel()})`);
+    });
+    c.on("device added", (d) => {
+      if (!d.isCamera()) return;
+      s.upsertCamera(d.getSerial(), {
+        name: d.getName(),
+        model: d.getModel(),
+        station: d.getStationSerial(),
+        battery: d.hasProperty(PropertyName.DeviceBattery) ? d.getPropertyValue(PropertyName.DeviceBattery) ?? null : null,
+      });
+      this.log("cloud", `camera ${d.getName()} (${d.getSerial()}, ${d.getModel()})`);
+    });
+
+    // --- local P2P connection + event database polling
+    c.on("station connect", (st) => {
+      const sn = st.getSerial();
+      const mode = st.getPropertyValue(PropertyName.StationGuardMode);
+      s.upsertStation(sn, {
+        p2p: true,
+        ...(mode !== undefined && mode !== null ? { guardMode: mode, guardModeName: this.guardModeName(mode) } : {}),
+      });
+      this.log("local", `P2P connected to ${st.getName()} (LAN only)`);
+      clearInterval(this.pollers.get(sn));
+      const poll = () => {
+        try { st.databaseQueryLatestInfo(); } catch (err) { this.log("local", `event database query failed: ${err.message}`); }
+      };
+      poll();
+      this.pollers.set(sn, setInterval(poll, this.config.pollSeconds * 1000));
+    });
+    const disconnected = (st, reason) => {
+      const sn = st.getSerial();
+      clearInterval(this.pollers.get(sn));
+      this.pollers.delete(sn);
+      s.upsertStation(sn, { p2p: false });
+      this.log("local", `P2P to ${st.getName()} closed${reason ? `: ${reason}` : ""}`);
+    };
+    c.on("station close", (st) => disconnected(st));
+    c.on("station connection error", (st, err) => disconnected(st, err?.message));
+
+    c.on("station database query latest", (st, _rc, rows) => {
+      for (const row of rows ?? []) {
+        const cam = s.cameras[row.device_sn];
+        if (!cam) continue;
+        const previous = cam.count;
+        const isNew = previous !== null && row.event_count > previous;
+        s.upsertCamera(row.device_sn, {
+          count: row.event_count,
+          ...(isNew ? { lastEventAt: new Date().toISOString() } : {}),
+        });
+        if (isNew) {
+          this.log("local", `new event: ${cam.name} (+${row.event_count - previous})`);
+          s.publish({ type: "local_recording", device_sn: row.device_sn, count: row.event_count });
+        }
+        if (row.crop_local_path) {
+          this.pathStation.set(row.crop_local_path, st);
+          this.images.request(row.device_sn, row.crop_local_path, { force: isNew });
+        }
+      }
+    });
+
+    c.on("station image download", (_st, path, image) => {
+      const sn = this.images.received(path, image?.data, image?.type?.mime);
+      if (sn) {
+        s.upsertCamera(sn, { imageAt: new Date().toISOString() });
+        s.publish({ type: "image", device_sn: sn });
+      }
+    });
+
+    // --- livestream
+    c.on("station livestream start", (_st, device, meta, video) => {
+      const sn = device.getSerial();
+      const codec = meta.videoCodec === 0 ? "h264" : meta.videoCodec === 1 ? "h265" : "unknown";
+      s.upsertCamera(sn, { codec });
+      this.live.started(sn);
+      this.log("local", `livestream ${device.getName()} running (${codec}, ${meta.videoWidth}x${meta.videoHeight})`);
+      video.on("data", (chunk) => this.live.feed(sn, chunk));
+      video.on("end", () => this.live.ended(sn));
+    });
+    c.on("station livestream stop", (_st, device) => {
+      this.live.ended(device.getSerial());
+      this.log("local", `livestream ${device.getName()} stopped`);
+    });
+
+    // --- guard mode / battery
+    const guard = (st, mode) => {
+      if (mode === undefined || mode === null) return;
+      s.upsertStation(st.getSerial(), { guardMode: mode, guardModeName: this.guardModeName(mode) });
+    };
+    c.on("station guard mode", guard);
+    c.on("station property changed", (st, name, value) => {
+      if (name === PropertyName.StationGuardMode) guard(st, value);
+    });
+    c.on("device property changed", (d, name, value) => {
+      if (name === PropertyName.DeviceBattery && s.cameras[d.getSerial()]) s.upsertCamera(d.getSerial(), { battery: value });
+    });
+
+    // --- cloud push (supplementary: tells person vs. motion)
+    c.on("device person detected", (d, on) => {
+      if (!on || !s.cameras[d.getSerial()]) return;
+      s.upsertCamera(d.getSerial(), { personAt: new Date().toISOString() });
+      s.publish({ type: "person", device_sn: d.getSerial(), source: "cloud" });
+    });
+    c.on("device motion detected", (d, on) => {
+      if (!on || !s.cameras[d.getSerial()]) return;
+      s.upsertCamera(d.getSerial(), { motionAt: new Date().toISOString() });
+      s.publish({ type: "motion", device_sn: d.getSerial(), source: "cloud" });
+    });
+  }
+}
+
+const quietLogger = {
+  trace() {},
+  debug() {},
+  info() {},
+  warn: (...a) => console.warn(...a),
+  error: (...a) => console.error(...a),
+};

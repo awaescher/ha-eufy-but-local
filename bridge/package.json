@@ -1,0 +1,22 @@
+{
+  "name": "eufy-local-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local bridge between a Eufy HomeBase 2 and the Home Assistant integration eufy_local",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "simulator": "EUFY_SIMULATOR=1 DATA_DIR=./data-sim node server.mjs",
+    "test": "node --test --test-reporter=spec test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "eufy-security-client": "~3.8.0"
+  },
+  "author": "Andreas Wäscher",
+  "repository": "github:awaescher/ha-local-eufy-cams",
+  "license": "MIT"
+}

@@ -1,0 +1,109 @@
+"""Setup, unload, availability and diagnostics."""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+from freezegun.api import FrozenDateTimeFactory
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import STATE_UNAVAILABLE
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr, entity_registry as er
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
+
+from custom_components.eufy_local.const import CONF_TOKEN, DOMAIN
+from custom_components.eufy_local.diagnostics import async_get_config_entry_diagnostics
+
+from .conftest import CAM, STATION, FakeBridge, wait_for
+
+
+async def test_setup_creates_devices_and_entities(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    assert setup_integration.state is ConfigEntryState.LOADED
+
+    devices = dr.async_get(hass)
+    station = devices.async_get_device(identifiers={(DOMAIN, STATION)})
+    camera = devices.async_get_device(identifiers={(DOMAIN, CAM)})
+    assert station.model == "T8010"
+    assert camera.name == "Front door"
+    assert camera.via_device_id == station.id
+
+    entities = er.async_entries_for_config_entry(er.async_get(hass), setup_integration.entry_id)
+    platforms = sorted(e.domain for e in entities)
+    assert platforms == [
+        "alarm_control_panel",
+        "binary_sensor",
+        "binary_sensor",
+        "camera",
+        "event",
+        "image",
+        "sensor",
+        "sensor",
+        "sensor",
+    ]
+
+
+async def test_not_ready_when_bridge_is_down(
+    hass: HomeAssistant, bridge: FakeBridge, entry: MockConfigEntry
+) -> None:
+    await bridge.close()
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+async def test_wrong_token_starts_reauth(
+    hass: HomeAssistant, bridge: FakeBridge, entry: MockConfigEntry
+) -> None:
+    entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_TOKEN: "wrong"})
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert [f["context"]["source"] for f in flows] == ["reauth"]
+
+
+async def test_unload_closes_event_stream(
+    hass: HomeAssistant, bridge: FakeBridge, setup_integration: MockConfigEntry
+) -> None:
+    assert await hass.config_entries.async_unload(setup_integration.entry_id)
+    assert setup_integration.state is ConfigEntryState.NOT_LOADED
+    await wait_for(lambda: bridge.sse_clients == 0)
+
+
+async def test_entities_unavailable_while_bridge_is_down(
+    hass: HomeAssistant,
+    bridge: FakeBridge,
+    setup_integration: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    sensor = "sensor.front_door_battery"
+    assert hass.states.get(sensor).state == "87"
+
+    port = bridge.port
+    await bridge.close()
+    freezer.tick(timedelta(seconds=61))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get(sensor).state == STATE_UNAVAILABLE
+
+    # The bridge restarts on the same port; the next refresh recovers.
+    await bridge.start(port)
+    freezer.tick(timedelta(seconds=61))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get(sensor).state == "87"
+
+
+async def test_diagnostics_redact_token(
+    hass: HomeAssistant, setup_integration: MockConfigEntry
+) -> None:
+    diag = await async_get_config_entry_diagnostics(hass, setup_integration)
+    assert diag["entry"][CONF_TOKEN] == "**REDACTED**"
+    assert diag["bridge_state"]["stations"][STATION]["p2p"] is True
+    assert diag["last_update_success"] is True

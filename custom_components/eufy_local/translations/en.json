@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect bridge",
+        "description": "Address of the eufy-local-bridge container (same network as the HomeBase).",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "Token (BRIDGE_TOKEN)"
+        }
+      },
+      "login": {
+        "title": "Eufy account",
+        "description": "Use a secondary account the HomeBase is shared with (admin rights), not your main account. Last message: {message}",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "country": "Country (two letters, e.g. DE)"
+        }
+      },
+      "code": {
+        "title": "Verification code",
+        "description": "Eufy sent a verification code by email or SMS.",
+        "data": { "code": "Code" }
+      },
+      "captcha": {
+        "title": "Captcha",
+        "description": "Enter the characters shown in the image: ![Captcha]({captcha_url})",
+        "data": { "code": "Characters" }
+      },
+      "reauth_confirm": {
+        "title": "Bridge token",
+        "description": "The bridge rejected the stored token. Enter the current BRIDGE_TOKEN.",
+        "data": { "token": "Token" }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot reach the bridge.",
+      "invalid_token": "The bridge rejected the token.",
+      "login_failed": "Eufy login failed."
+    },
+    "abort": {
+      "already_configured": "This HomeBase is already configured.",
+      "cannot_connect": "Lost connection to the bridge.",
+      "no_station": "No HomeBase found in this account. Is it shared with the secondary account?",
+      "reauth_successful": "Token updated."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "local_activity": { "name": "Event (local)" },
+      "p2p_local": { "name": "Local P2P connection" }
+    },
+    "event": {
+      "activity": {
+        "name": "Activity",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "local_recording": "New recording (local)",
+              "person": "Person (cloud)",
+              "motion": "Motion (cloud)"
+            }
+          }
+        }
+      }
+    },
+    "image": {
+      "last_event_image": { "name": "Last event image" }
+    },
+    "sensor": {
+      "last_event": { "name": "Last event" },
+      "event_count": { "name": "Stored events" }
+    }
+  }
+}

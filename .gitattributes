@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+*.h264 binary
+*.jpg binary
+*.png binary
+
+bridge/package-lock.json linguist-generated=true -diff
