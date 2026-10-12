@@ -267,7 +267,7 @@ describe("bridge API (simulated HomeBase)", () => {
   it("reports device properties and the local event list for diagnosis", async () => {
     const info = await (await b.api(`/api/device/${CAM}/properties`)).json();
     assert.equal(info.properties.battery, SIM_CAMERAS[0].battery);
-    assert.deepEqual(info.writable, ["motionDetection", "motionDetectionSensitivity"]);
+    assert.ok(info.writable.includes("motionDetection") && !info.writable.includes("battery"));
     assert.ok(info.commands.includes("deviceStartLivestream"));
     assert.equal((await b.api("/api/device/UNKNOWN/properties")).status, 404);
 
@@ -291,6 +291,45 @@ describe("bridge API (simulated HomeBase)", () => {
     assert.equal((await post("/api/device/UNKNOWN/property", { name: "motionDetection", value: true })).status, 404);
     const station = await post(`/api/station/${SIM_STATION}/property`, { name: "alarmVolume", value: 5 });
     assert.equal((await station.json()).returnCode, 0);
+  });
+
+  it("exposes whitelisted properties and keeps them current", async () => {
+    const snap = await (await b.api("/api/state")).json();
+    assert.equal(snap.cameras[CAM].properties.statusLed, false);
+    assert.equal(snap.cameras[CAM].properties.wifiRssi, -60);
+    assert.equal(snap.cameras[CAM].properties.battery, undefined, "battery has its own field");
+    assert.equal(typeof snap.stations[SIM_STATION].properties.alarmVolume, "number");
+    const post = (path, body) => b.api(path, { method: "POST", body: JSON.stringify(body) });
+    await post(`/api/device/${CAM}/property`, { name: "statusLed", value: true });
+    await until(() => b.state.cameras[CAM].properties.statusLed === true);
+    await post(`/api/station/${SIM_STATION}/property`, { name: "alarmVolume", value: 12 });
+    await until(() => b.state.stations[SIM_STATION].properties.alarmVolume === 12);
+  });
+
+  it("runs siren, snooze and reboot commands", async () => {
+    const post = (path, body) => b.api(path, { method: "POST", body: JSON.stringify(body) });
+    for (const [path, body] of [
+      [`/api/device/${CAM}/command`, { name: "alarm", seconds: 5 }],
+      [`/api/device/${CAM}/command`, { name: "stopAlarm" }],
+      [`/api/device/${CAM}/command`, { name: "snooze", seconds: 600 }],
+      [`/api/station/${SIM_STATION}/command`, { name: "alarm", seconds: 5 }],
+      [`/api/station/${SIM_STATION}/command`, { name: "reboot" }],
+    ]) {
+      const res = await post(path, body);
+      assert.equal(res.status, 200, `${path} ${body.name}`);
+      assert.equal((await res.json()).returnCode, 0);
+    }
+    assert.equal((await post(`/api/device/${CAM}/command`, { name: "alarm" })).status, 400, "needs seconds");
+    assert.equal((await post(`/api/device/${CAM}/command`, { name: "reboot" })).status, 400, "station only");
+  });
+
+  it("reports local recordings of a humans-only camera as persons", async () => {
+    const humans = SIM_CAMERAS.find((c) => c.humansOnly).sn;
+    const res = await b.api("/api/events");
+    await b.api(`/api/simulator/${humans}/event`, { method: "POST" });
+    const events = await readEvents(res, (e) => e.name === "event" && e.data.type === "person");
+    assert.deepEqual(events.at(-1).data.source, "local");
+    assert.equal(events.at(-1).data.device_sn, humans);
   });
 
   it("rejects streams for unknown cameras", async () => {

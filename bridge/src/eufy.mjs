@@ -11,6 +11,7 @@ import { basename, join } from "node:path";
 import { decodeImageV2, isV2Image } from "./image-v2.mjs";
 import { ImageStore } from "./images.mjs";
 import { LiveStreams } from "./live.mjs";
+import { CAMERA_PROPERTIES, HUMANS_ONLY, STATION_PROPERTIES, pick } from "./properties.mjs";
 
 export class EufyConnector {
   /**
@@ -232,6 +233,41 @@ export class EufyConnector {
     return { ...result, ms };
   }
 
+  /**
+   * Runs a command over P2P and waits for the HomeBase's result. Camera (`kind` "device"):
+   * `alarm` {seconds}, `stopAlarm`, `snooze` {seconds}. HomeBase (`kind` "station"): `alarm`
+   * {seconds}, `stopAlarm`, `reboot`.
+   */
+  async command(kind, sn, name, { seconds } = {}, timeoutMs = 15_000) {
+    if (!this.client) throw new Error("Not connected");
+    const stationSn = kind === "station" ? sn : this.state.cameras[sn]?.station;
+    const station = await this.client.getStation(stationSn);
+    const device = kind === "device" ? await this.client.getDevice(sn) : null;
+    const duration = Math.round(Number(seconds));
+    const needsSeconds = name === "alarm" || name === "snooze";
+    if (needsSeconds && !(duration > 0 && duration <= 3600)) throw new RangeError("seconds: 1..3600");
+    const run = {
+      device: {
+        alarm: () => station.triggerDeviceAlarmSound(device, duration),
+        stopAlarm: () => station.resetDeviceAlarmSound(device),
+        snooze: () => station.snooze(device, { snooze_time: duration }),
+      },
+      station: {
+        alarm: () => station.triggerStationAlarmSound(duration),
+        stopAlarm: () => station.resetStationAlarmSound(),
+        reboot: () => station.rebootHUB(),
+      },
+    }[kind]?.[name];
+    if (!run) throw new RangeError(`unknown command ${name}`);
+    const started = Date.now();
+    const result = await this.#query(stationSn, "station command result", timeoutMs, run, (r) => ({
+      returnCode: r?.return_code,
+      commandType: r?.command_type,
+    }));
+    this.log("local", `command ${name} on ${sn}: return code ${result.returnCode} after ${Date.now() - started} ms`);
+    return { ...result, ms: Date.now() - started };
+  }
+
   async setGuardMode(stationSn, mode) {
     const value = this.guardModeValue(mode);
     if (value === undefined) throw new RangeError(`Unknown guard mode: ${mode}`);
@@ -286,6 +322,7 @@ export class EufyConnector {
         model: st.getModel(),
         guardMode: mode ?? null,
         guardModeName: this.guardModeName(mode),
+        properties: pick(st.getProperties?.(), STATION_PROPERTIES),
       });
       this.log("cloud", `station ${st.getName()} (${st.getSerial()}, ${st.getModel()})`);
     });
@@ -296,6 +333,7 @@ export class EufyConnector {
         model: d.getModel(),
         station: d.getStationSerial(),
         battery: d.hasProperty(PropertyName.DeviceBattery) ? d.getPropertyValue(PropertyName.DeviceBattery) ?? null : null,
+        properties: pick(d.getProperties?.(), CAMERA_PROPERTIES),
       });
       this.log("cloud", `camera ${d.getName()} (${d.getSerial()}, ${d.getModel()})`);
     });
@@ -339,6 +377,11 @@ export class EufyConnector {
         if (isNew) {
           this.log("local", `new event: ${cam.name} (+${row.event_count - previous})`);
           s.publish({ type: "local_recording", device_sn: row.device_sn, count: row.event_count });
+          // A camera set to detect humans only records only when it sees a person (ADR 0012).
+          if (cam.properties?.motionDetectionType === HUMANS_ONLY) {
+            s.upsertCamera(row.device_sn, { personAt: new Date().toISOString() });
+            s.publish({ type: "person", device_sn: row.device_sn, source: "local" });
+          }
         }
         if (row.crop_local_path) {
           this.pathStation.set(row.crop_local_path, st);
@@ -389,10 +432,14 @@ export class EufyConnector {
     c.on("station guard mode", guard);
     c.on("station property changed", (st, name, value) => {
       if (name === PropertyName.StationGuardMode) guard(st, value);
+      if (STATION_PROPERTIES.includes(name) && s.stations[st.getSerial()]) {
+        s.upsertStation(st.getSerial(), { properties: { [name]: value } });
+      }
     });
     c.on("device property changed", (d, name, value) => {
       if (!s.cameras[d.getSerial()]) return;
       if (name === PropertyName.DeviceBattery) s.upsertCamera(d.getSerial(), { battery: value });
+      if (CAMERA_PROPERTIES.includes(name)) s.upsertCamera(d.getSerial(), { properties: { [name]: value } });
       // Shows which changes reach the bridge locally (e.g. made in the Eufy app).
       if (name !== "picture") this.log("local", `property ${d.getName()} ${name}=${JSON.stringify(value)}`);
     });

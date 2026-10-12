@@ -13,6 +13,8 @@
 //   GET  /api/device/:sn/properties      diagnostics: library properties of a device
 //   POST /api/device/:sn/property {name,value}   write a camera property (P2P)
 //   POST /api/station/:sn/property {name,value}  write a HomeBase property (P2P)
+//   POST /api/device/:sn/command {name,seconds?} alarm | stopAlarm | snooze (P2P)
+//   POST /api/station/:sn/command {name,seconds?} alarm | stopAlarm | reboot (P2P)
 //   GET  /api/station/:sn/events?hours=  diagnostics: local event records (HomeBase database)
 //   POST /api/simulator/:sn/event        simulator only: trigger an event
 
@@ -173,13 +175,15 @@ export function createApi({ state, connector, credentials, simulator = null, tok
         return send(res, 202, { ok: true });
       }
       if (action === "property") return send(res, 200, await connector.setProperty("station", id, body.name, body.value));
+      if (action === "command") return send(res, 200, await connector.command("station", id, body.name, body));
       return send(res, 404, { error: "not found" });
     },
 
     "POST device": async ({ req, res, id, action }) => {
-      if (action !== "property") return send(res, 404, { error: "not found" });
+      if (action !== "property" && action !== "command") return send(res, 404, { error: "not found" });
       if (!state.cameras[id]) return send(res, 404, { error: "unknown camera" });
       const body = await readJson(req);
+      if (action === "command") return send(res, 200, await connector.command("device", id, body.name, body));
       return send(res, 200, await connector.setProperty("device", id, body.name, body.value));
     },
 

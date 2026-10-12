@@ -75,6 +75,7 @@ bridge/
   src/images.mjs        serialized thumbnail downloads from the HomeBase database
   src/live.mjs          on-demand livestreams, viewer refcount, GOP cache, one camera per station
   src/mpegts.mjs        MPEG-TS muxer (H.264 + AAC/ADTS)
+  src/properties.mjs    whitelist of camera/HomeBase properties exposed to Home Assistant
   src/image-v2.mjs      v2 thumbnail decoder (ported, see third-party/)
   src/h264.mjs          Annex-B helpers (SPS detection)
   src/http.mjs          HTTP + SSE API
@@ -109,6 +110,8 @@ docs/                   STATUS.md, architecture.md, offline-test-plan.md, adr/
 | POST | `/api/station/{sn}/guard` | `{mode}`: `AWAY`, `HOME`, `DISARMED`, … |
 | POST | `/api/device/{sn}/property` | `{name, value}`: write a camera property over P2P; answers `{returnCode, ms}` once the HomeBase confirms |
 | POST | `/api/station/{sn}/property` | `{name, value}`: same for the HomeBase |
+| POST | `/api/device/{sn}/command` | `{name, seconds?}`: `alarm`, `stopAlarm`, `snooze` (P2P) |
+| POST | `/api/station/{sn}/command` | `{name, seconds?}`: `alarm`, `stopAlarm`, `reboot` (P2P) |
 | POST | `/api/config` | `{cloudPush: bool}`; sent by the integration on every setup (ADR 0011) |
 | GET | `/api/device/{sn}/properties` | diagnostics: library property values, writable names, commands |
 | GET | `/api/station/{sn}/events?hours=24` | diagnostics: local event records from the HomeBase database (P2P) |
@@ -121,14 +124,16 @@ Snapshot shape:
 ```json
 {
   "version": "0.1.0", "phase": "ok", "message": "", "cloud": true, "cloudPush": false,
-  "stations": { "<sn>": { "name": "", "model": "T8010", "p2p": true, "guardMode": 1, "guardModeName": "HOME" } },
+  "stations": { "<sn>": { "name": "", "model": "T8010", "p2p": true, "guardMode": 1, "guardModeName": "HOME",
+                          "properties": { "alarmVolume": 26, "...": "see bridge/src/properties.mjs" } } },
   "cameras": { "<sn>": { "name": "", "model": "T8113", "station": "<sn>", "battery": 87, "count": 120,
                          "lastEventAt": null, "imageAt": null, "live": false, "codec": null,
-                         "personAt": null, "motionAt": null } }
+                         "personAt": null, "motionAt": null, "properties": { "statusLed": false, "...": "" } } }
 }
 ```
 
-Event `type` values: `local_recording` (HomeBase database), `person` / `motion` (cloud push),
+Event `type` values: `local_recording` (HomeBase database), `person` (`source: local` for
+humans-only cameras, or `cloud`), `motion` (cloud push),
 `image` (new thumbnail available).
 
 ## Conventions
