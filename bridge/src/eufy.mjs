@@ -5,6 +5,9 @@
 // livestream, guard mode. Cloud: login + device list on start, optional
 // person/motion push notifications.
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
+
 import { decodeImageV2, isV2Image } from "./image-v2.mjs";
 import { ImageStore } from "./images.mjs";
 import { LiveStreams } from "./live.mjs";
@@ -41,6 +44,19 @@ export class EufyConnector {
       log: (m) => this.log("local", m),
       stationOf: (sn) => this.state.cameras[sn]?.station ?? sn,
     });
+  }
+
+  /** Keeps a thumbnail the v2 decoder could not handle, for diagnosis; it never leaves the host. */
+  #keepUndecoded(path, data) {
+    const dir = join(this.config.dataDir, "undecoded");
+    const file = join(dir, basename(path).replace(/[^\w.-]/g, "_") + ".v2");
+    try {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(file, data);
+      this.log("local", `could not decode v2 thumbnail ${path}, kept as ${file}`);
+    } catch (err) {
+      this.log("local", `could not decode v2 thumbnail ${path} (${err.message})`);
+    }
   }
 
   get connected() {
@@ -225,7 +241,7 @@ export class EufyConnector {
       if (data && isV2Image(data)) {
         data = decodeImageV2(data);
         mime = "image/jpeg";
-        if (!data) this.log("local", `could not decode v2 thumbnail ${path}`);
+        if (!data) this.#keepUndecoded(path, image.data);
       }
       const sn = this.images.received(path, data, mime);
       if (sn && data) {

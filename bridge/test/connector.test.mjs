@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -111,6 +111,19 @@ describe("EufyConnector", () => {
     assert.equal(state.stations.OLD, undefined);
     assert.equal(connector.pollers.size, 0);
     await connector.close();
+  });
+
+  it("keeps a v2 thumbnail it cannot decode and does not announce it", async () => {
+    const { state, connector, clients } = setup();
+    await connector.start({ email: "a", password: "b" });
+    const events = [];
+    state.on("event", (e) => events.push(e));
+    connector.images.owner.set("/media/x/1_c00.jpg", "C1");
+    const blob = Buffer.from("v2_eufysecurity:T8000TEST00000002:0000000000:broken");
+    clients[0].emit("station image download", station(), "/media/x/1_c00.jpg", { data: blob });
+    assert.deepEqual(readFileSync(join(connector.config.dataDir, "undecoded", "1_c00.jpg.v2")), blob);
+    assert.equal(connector.images.get("C1"), null);
+    assert.deepEqual(events, []);
   });
 
   it("translates guard modes and rejects unknown ones", async () => {
