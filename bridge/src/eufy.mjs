@@ -180,25 +180,56 @@ export class EufyConnector {
     return { query: "byDate", ...byDate, localReturnCode: local.returnCode };
   }
 
-  #query(stationSn, eventName, timeoutMs, send) {
+  /** Sends a request to a station and resolves with its answer event (`pick` shapes it). */
+  #query(stationSn, eventName, timeoutMs, send, pick = (returnCode, records) => ({ returnCode, records })) {
     return new Promise((resolve, reject) => {
       const client = this.client;
       const done = () => {
         clearTimeout(timer);
         client.removeListener(eventName, onAnswer);
       };
-      const onAnswer = (st, returnCode, records) => {
+      const onAnswer = (st, ...args) => {
         if (st.getSerial() !== stationSn) return;
         done();
-        resolve({ returnCode, records });
+        resolve(pick(...args));
       };
       const timer = setTimeout(() => {
         done();
-        reject(new Error("the HomeBase did not answer the database query"));
+        reject(new Error(`the HomeBase did not answer (${eventName})`));
       }, timeoutMs);
       client.on(eventName, onAnswer);
-      send();
+      Promise.resolve()
+        .then(send)
+        .catch((err) => {
+          done();
+          reject(err);
+        });
     });
+  }
+
+  /**
+   * Writes one property of a camera (`kind` "device") or HomeBase (`kind` "station") over P2P
+   * and waits for the HomeBase's command result. `ms` tells how long the HomeBase took, which
+   * shows whether it had to wake the camera.
+   */
+  async setProperty(kind, sn, name, value, timeoutMs = 15_000) {
+    if (!this.client) throw new Error("Not connected");
+    const stationSn = kind === "station" ? sn : this.state.cameras[sn]?.station;
+    const started = Date.now();
+    const write = () =>
+      kind === "station" ? this.client.setStationProperty(sn, name, value) : this.client.setDeviceProperty(sn, name, value);
+    const result = await this.#query(stationSn, "station command result", timeoutMs, async () => {
+      try {
+        await write();
+      } catch (err) {
+        // The library rejects unknown, read-only or out-of-range values before sending.
+        throw new RangeError(err.message);
+      }
+    }, (r) => ({ returnCode: r?.return_code, commandType: r?.command_type }));
+    const ms = Date.now() - started;
+    const label = kind === "station" ? this.state.stations[sn]?.name : this.state.cameras[sn]?.name;
+    this.log("local", `set ${label ?? sn} ${name}=${JSON.stringify(value)}: return code ${result.returnCode} after ${ms} ms`);
+    return { ...result, ms };
   }
 
   async setGuardMode(stationSn, mode) {
@@ -360,7 +391,10 @@ export class EufyConnector {
       if (name === PropertyName.StationGuardMode) guard(st, value);
     });
     c.on("device property changed", (d, name, value) => {
-      if (name === PropertyName.DeviceBattery && s.cameras[d.getSerial()]) s.upsertCamera(d.getSerial(), { battery: value });
+      if (!s.cameras[d.getSerial()]) return;
+      if (name === PropertyName.DeviceBattery) s.upsertCamera(d.getSerial(), { battery: value });
+      // Shows which changes reach the bridge locally (e.g. made in the Eufy app).
+      if (name !== "picture") this.log("local", `property ${d.getName()} ${name}=${JSON.stringify(value)}`);
     });
 
     // --- cloud push (optional, off by default: tells person vs. motion)

@@ -107,6 +107,8 @@ docs/                   STATUS.md, architecture.md, offline-test-plan.md, adr/
 | GET | `/api/image/{sn}` | latest event thumbnail (JPEG) or 404 |
 | GET | `/api/stream/{sn}[.ts\|.h264]` | MPEG-TS (H.264 + AAC) or `.h264` raw video; first viewer wakes the camera; 409 while displaced by another camera of the station |
 | POST | `/api/station/{sn}/guard` | `{mode}`: `AWAY`, `HOME`, `DISARMED`, … |
+| POST | `/api/device/{sn}/property` | `{name, value}`: write a camera property over P2P; answers `{returnCode, ms}` once the HomeBase confirms |
+| POST | `/api/station/{sn}/property` | `{name, value}`: same for the HomeBase |
 | POST | `/api/config` | `{cloudPush: bool}`; sent by the integration on every setup (ADR 0011) |
 | GET | `/api/device/{sn}/properties` | diagnostics: library property values, writable names, commands |
 | GET | `/api/station/{sn}/events?hours=24` | diagnostics: local event records from the HomeBase database (P2P) |
