@@ -4,6 +4,7 @@ A soft beep per second. Run from the repo root:
 
     .venv/bin/python devenv/gen_sim_audio.py bridge/simulator-assets/audio.aac
 """
+
 import sys
 
 import av
@@ -16,7 +17,7 @@ rate, samples = 16000, 1024
 t = np.arange(rate * 4) / rate
 signal = np.where((t % 1.0) < 0.15, 0.2 * np.sin(2 * np.pi * 440 * t), 0.0).astype(np.float32)
 for i in range(0, len(signal), samples):
-    chunk = signal[i:i + samples]
+    chunk = signal[i : i + samples]
     if len(chunk) < samples:
         chunk = np.pad(chunk, (0, samples - len(chunk)))
     frame = av.AudioFrame.from_ndarray(chunk.reshape(1, -1), format="fltp", layout="mono")
