@@ -20,7 +20,8 @@ export const PropertyName = Object.freeze({ DeviceBattery: "battery", StationGua
 export const SIM_STATION = "T8010SIM0000001";
 export const SIM_CAMERAS = Object.freeze([
   { sn: "T8113SIM0000001", name: "Front door", model: "T8113", image: "cam1.jpg", battery: 87, count: 120 },
-  { sn: "T8113SIM0000002", name: "Garden", model: "T8113", image: "cam2.jpg", battery: 55, count: 42 },
+  // Garden detects humans only, so its local recordings count as persons (ADR 0012).
+  { sn: "T8113SIM0000002", name: "Garden", model: "T8113", image: "cam2.jpg", battery: 55, count: 42, humansOnly: true },
   // Garage delivers the newer v2 thumbnail format, like real HomeBase 2 units do.
   { sn: "T8142SIM0000003", name: "Garage", model: "T8142", image: "cam3.v2", battery: 19, count: 7 },
 ]);
@@ -29,6 +30,16 @@ export const SIM_CAMERAS = Object.freeze([
  * Splits an Annex-B stream into frames, roughly like the camera delivers them:
  * a keyframe chunk (SPS + PPS + IDR slice) or a single P-frame slice.
  */
+// Writable camera settings with the values a real eufyCam 2C reports.
+const SIM_CAMERA_SETTINGS = Object.freeze({
+  enabled: true, motionDetection: true, motionDetectionSensitivity: 5, motionDetectionType: 2,
+  light: false, lightSettingsBrightnessManual: 100, nightvision: 1, statusLed: false, microphone: true,
+  speaker: true, speakerVolume: 93, audioRecording: true, antitheftDetection: false,
+  recordingClipLength: 60, recordingRetriggerInterval: 5, recordingEndClipMotionStops: false,
+  powerWorkingMode: 1, powerSource: 0, notificationType: 2, watermark: 1,
+});
+const SIM_STATION_SETTINGS = Object.freeze({ alarmVolume: 26, promptVolume: 20, alarmTone: 1, timeFormat: 1 });
+
 export function splitFrames(buf) {
   const starts = [];
   for (let i = 0; i + 4 < buf.length; i++) {
@@ -80,6 +91,16 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     getName: () => "HomeBase 2 (simulated)",
     getModel: () => "T8010",
     getPropertyValue: (name) => (name === PropertyName.StationGuardMode ? station.guard : undefined),
+    settings: { ...SIM_STATION_SETTINGS },
+    getProperties: () => ({ ...station.settings, alarm: false, currentMode: station.guard, sdStatus: 0, softwareVersion: "3.2.4.6" }),
+    // Commands answer like the real HomeBase: with a command result.
+    triggerDeviceAlarmSound: () => station.ack(),
+    resetDeviceAlarmSound: () => station.ack(),
+    snooze: () => station.ack(),
+    triggerStationAlarmSound: () => station.ack(),
+    resetStationAlarmSound: () => station.ack(),
+    rebootHUB: () => station.ack(),
+    ack: () => setTimeout(() => instance?.emit("station command result", station, { command_type: 1, channel: 255, return_code: 0 }), 5),
     databaseQueryLatestInfo() {
       const rows = cameras.map((c) => ({ device_sn: c.sn, event_count: c.count, crop_local_path: `/media/${c.sn}/${c.count}.jpg` }));
       setTimeout(() => instance?.emit("station database query latest", station, 0, rows), 5);
@@ -109,7 +130,10 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     },
   };
 
-  const cameras = SIM_CAMERAS.map((c) => ({ ...c }));
+  const cameras = SIM_CAMERAS.map((c) => ({
+    ...c,
+    settings: { ...SIM_CAMERA_SETTINGS, ...(c.humansOnly ? { motionDetectionType: 0 } : {}) },
+  }));
   const devices = cameras.map((c) => ({
     getSerial: () => c.sn,
     getName: () => c.name,
@@ -118,11 +142,10 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     isCamera: () => true,
     hasProperty: (n) => n === PropertyName.DeviceBattery,
     getPropertyValue: (n) => (n === PropertyName.DeviceBattery ? c.battery : undefined),
-    getProperties: () => ({ battery: c.battery, motionDetection: true, motionDetectionSensitivity: 4 }),
+    getProperties: () => ({ battery: c.battery, wifiRssi: -60, softwareVersion: "2.2.0.5", ...c.settings }),
     getPropertiesMetadata: () => ({
       battery: { name: "battery", writeable: false },
-      motionDetection: { name: "motionDetection", writeable: true },
-      motionDetectionSensitivity: { name: "motionDetectionSensitivity", writeable: true },
+      ...Object.fromEntries(Object.keys(c.settings).map((name) => [name, { name, writeable: true }])),
     }),
     getCommands: () => ["deviceStartLivestream", "deviceStopLivestream"],
   }));
@@ -148,6 +171,7 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
       const device = devices.find((d) => d.getSerial() === sn);
       if (!device) throw new Error(`unknown device ${sn}`);
       if (!device.getPropertiesMetadata()[name]?.writeable) throw new Error(`property ${name} is read only or unknown`);
+      cameras.find((c) => c.sn === sn).settings[name] = value;
       setTimeout(() => {
         this.emit("station command result", station, { command_type: 1, channel: 0, return_code: 0 });
         this.emit("device property changed", device, name, value);
@@ -198,8 +222,12 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
         setTimeout(() => this.emit("station guard mode", station, value), 5);
         return;
       }
-      if (name !== "alarmVolume") throw new Error(`property ${name} is read only or unknown`);
-      setTimeout(() => this.emit("station command result", station, { command_type: 1, channel: 255, return_code: 0 }), 5);
+      if (!(name in station.settings)) throw new Error(`property ${name} is read only or unknown`);
+      station.settings[name] = value;
+      setTimeout(() => {
+        this.emit("station command result", station, { command_type: 1, channel: 255, return_code: 0 });
+        this.emit("station property changed", station, name, value);
+      }, 5);
     }
 
     async startStationLivestream(sn) {

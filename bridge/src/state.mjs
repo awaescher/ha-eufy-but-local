@@ -43,7 +43,12 @@ export class BridgeState extends EventEmitter {
   }
 
   upsertStation(sn, fields) {
-    this.stations[sn] = { name: sn, model: null, p2p: false, guardMode: null, guardModeName: null, ...this.stations[sn], ...fields };
+    const old = this.stations[sn];
+    this.stations[sn] = {
+      name: sn, model: null, p2p: false, guardMode: null, guardModeName: null, properties: {},
+      ...old, ...fields,
+      properties: { ...old?.properties, ...fields.properties },
+    };
     this.emit("change");
   }
 
@@ -51,7 +56,9 @@ export class BridgeState extends EventEmitter {
     this.cameras[sn] = {
       name: sn, model: null, station: null, battery: null, count: null,
       lastEventAt: null, imageAt: null, live: false, codec: null, personAt: null, motionAt: null,
+      properties: {},
       ...this.cameras[sn], ...fields,
+      properties: { ...this.cameras[sn]?.properties, ...fields.properties },
     };
     this.emit("change");
   }
