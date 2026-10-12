@@ -73,6 +73,11 @@ Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line cove
 
 ## Known risks
 
+- go2rtc 1.9.14 (bundled with Home Assistant) crashed several times with a nil pointer in
+  `Codec.Match` when a WebRTC request arrived while the bridge stream was unreachable (bridge
+  restart, or a camera refused with 409). Home Assistant restarts go2rtc automatically. Not
+  reproducible on demand; not reported upstream (ADR 0012).
+
 - `eufy-security-client` (bropat) is archived (2026-09-12) and deprecated on npm; the author
   points to mega-yfue/eufy-sdk. Eufy is shutting down the legacy APIs it uses, so login may
   break at any time. The first hardware test shows whether 3.8.0 still logs in today. The local

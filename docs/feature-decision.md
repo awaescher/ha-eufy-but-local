@@ -1,6 +1,6 @@
 # Feature set: decision basis
 
-Status: proposal for the maintainer, 2026-10-13. Decisions go into an ADR once made.
+Status: decided 2026-10-13, see `adr/0012-feature-set.md`.
 
 The maintainer's rule (AGENTS.md rule 0): everything that can be local must be local; the Eufy
 login is the only accepted cloud use; every exception is negotiated, off by default and
