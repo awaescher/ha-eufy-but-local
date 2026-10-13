@@ -1,6 +1,6 @@
 {
   "domain": "eufy_local",
-  "name": "HALEC – Home Assistant Local Eufy Cams",
+  "name": "Eufy But Local",
   "after_dependencies": [
     "stream"
   ],
@@ -9,10 +9,10 @@
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/awaescher/ha-local-eufy-cams",
+  "documentation": "https://github.com/awaescher/ha-eufy-but-local",
   "integration_type": "hub",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/awaescher/ha-local-eufy-cams/issues",
+  "issue_tracker": "https://github.com/awaescher/ha-eufy-but-local/issues",
   "requirements": [],
   "version": "0.1.0"
 }

@@ -1,0 +1,137 @@
+name: Release
+
+# Every push to main is a release:
+#   1. CI (ci.yml) must pass.
+#   2. Next version: major.minor from bridge/package.json, patch = highest existing
+#      v<major>.<minor>.* tag + 1 (or the patch from package.json if there is none yet).
+#      To start 0.2.x, set "version": "0.2.0" in bridge/package.json (and manifest.json).
+#   3. Bridge image for amd64 and arm64:
+#        ghcr.io/<owner>/eufy-local-bridge   always (GITHUB_TOKEN)
+#        docker.io/<user>/eufy-local-bridge  only with variable DOCKERHUB_USERNAME and
+#                                            secret DOCKERHUB_TOKEN
+#      Tags: <major>.<minor>.<patch>, <major>.<minor>, <major>, latest.
+#   4. Tag v<version> and GitHub release with eufy_local.zip (HACS installs that zip).
+# The version is written into the image and the zip only; nothing is committed back to main,
+# so the run cannot trigger itself and branch protection does not get in the way.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "devenv/**"
+      - "**.md"
+      - ".editorconfig"
+      - ".gitattributes"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+# Releases run one after another so two pushes never get the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: next
+        run: |
+          # A re-run of the same commit keeps its version.
+          existing=$(git tag --points-at HEAD -l 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -1)
+          if [ -n "$existing" ]; then
+            version="${existing#v}"
+          else
+            base=$(jq -r .version bridge/package.json)
+            major=$(echo "$base" | cut -d. -f1)
+            minor=$(echo "$base" | cut -d. -f2)
+            base_patch=$(echo "$base" | cut -d. -f3 | cut -d- -f1)
+            last=$(git tag -l "v$major.$minor.*" | sed -E "s/^v$major\.$minor\.//" | grep -E '^[0-9]+$' | sort -n | tail -1)
+            patch=$base_patch
+            if [ -n "$last" ] && [ $((last + 1)) -gt "$patch" ]; then patch=$((last + 1)); fi
+            version="$major.$minor.$patch"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "### Version $version" >> "$GITHUB_STEP_SUMMARY"
+
+  image:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set version
+        working-directory: bridge
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: vars.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # Empty lines are ignored, so Docker Hub drops out when the variable is unset.
+          images: |
+            ghcr.io/${{ github.repository_owner }}/eufy-local-bridge
+            ${{ vars.DOCKERHUB_USERNAME != '' && format('docker.io/{0}/eufy-local-bridge', vars.DOCKERHUB_USERNAME) || '' }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}},value=${{ env.VERSION }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=eufy-local-bridge
+            org.opencontainers.image.description=Eufy But Local bridge: local P2P access to a Eufy HomeBase 2 for Home Assistant
+            org.opencontainers.image.version=${{ env.VERSION }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: bridge
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    needs: [version, image]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build eufy_local.zip
+        run: |
+          manifest=custom_components/eufy_local/manifest.json
+          jq --arg v "$VERSION" '.version = $v' "$manifest" > manifest.tmp && mv manifest.tmp "$manifest"
+          (cd custom_components/eufy_local && zip -r -X "$GITHUB_WORKSPACE/eufy_local.zip" . -x '__pycache__/*' '*.pyc')
+      - name: Tag and GitHub release
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" eufy_local.zip --clobber
+          else
+            gh release create "v$VERSION" eufy_local.zip --target "$GITHUB_SHA" \
+              --title "v$VERSION" --generate-notes
+          fi

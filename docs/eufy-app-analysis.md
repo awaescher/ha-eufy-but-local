@@ -1,4 +1,4 @@
-# Eufy app analysis: livestream behaviour and ideas for HALEC
+# Eufy app analysis: livestream behaviour and ideas for Eufy But Local
 
 Static analysis of the official Eufy iOS app (Anker eufy 6.1.11, Apple Silicon wrapper) with
 REA and Ghidra 12.1.4, 2026-10-13. Everything below comes from decompiled code and strings,
@@ -53,7 +53,7 @@ Analysed frameworks (not encrypted, unlike the main binary): `BC_P2PClient` (P2P
   property `is_support_multi_live_stream` of the newer thing model (`ESIMKMegaDeviceManager`).
   Devices outside that model return false; for HomeBase 2 this is likely, not verified.
 
-### Consequences for HALEC
+### Consequences for Eufy But Local
 
 - The "one stream per station" limit observed so far comes from `eufy-security-client`: it
   keeps a single video slot per P2P session and, when another channel starts, ends the running
@@ -67,22 +67,22 @@ Analysed frameworks (not encrypted, unlike the main binary): `BC_P2PClient` (P2P
 
 1. **No segmenting, picture from the first keyframe.** The app feeds every P2P frame straight
    into a hardware decoder (`AkHardDecoder`, `IDCHardDecoder`) and renders from the first IDR
-   (`movicPlay_First_IDR_Frame`, `AKVideoPlayer_State_FirstIDRFrame`). HALEC has so far only
+   (`movicPlay_First_IDR_Frame`, `AKVideoPlayer_State_FirstIDRFrame`). Eufy But Local has so far only
    been verified in HA through HLS, which needs a complete keyframe-aligned segment plus
    player buffering: several seconds. Most likely the largest factor. The equivalent in HA is
    WebRTC through the built-in go2rtc (open item in `STATUS.md`).
 2. **Bounded latency.** The app drops buffered frames when its cache grows
    (`-[VideoLivePlayer dropFrame]`, `setFpsWithCacheNum:`, "drop p2p cached frame", debug
-   overlay `delay … cache …` from `videoDelayTime`/`videoBufferCount`). HALEC stamps each frame
+   overlay `delay … cache …` from `videoDelayTime`/`videoBufferCount`). Eufy But Local stamps each frame
    with `max(now, last + minStep)` (`LiveStreams.feed`); under repeated P2P bursts the
    timestamps can run ahead of the wall clock, so delay may accumulate instead of shrinking.
 3. **Instant placeholder.** On leaving the view the app saves the last live frame
-   (`saveLastVideoImage`) and shows it immediately the next time. HALEC shows the latest event
+   (`saveLastVideoImage`) and shows it immediately the next time. Eufy But Local shows the latest event
    thumbnail, which may be old.
 4. **No start-up trick.** The app does not pre-warm (`prepareToPlay` is empty) and no
    "request keyframe" command was found. Its start time is also "wake camera + first IDR".
-   HALEC keeps the P2P connection open permanently, while the app connects on demand, so here
-   HALEC has the edge.
+   Eufy But Local keeps the P2P connection open permanently, while the app connects on demand, so here
+   Eufy But Local has the edge.
 
 ## Further opportunities
 
@@ -98,7 +98,7 @@ Analysed frameworks (not encrypted, unlike the main binary): `BC_P2PClient` (P2P
    entity, only for models that report the property.
 7. **Measure like the app.** The app separately tracks P2P connect, command and first picture
    (`p2pStartConnectTime`, `startLiveTime`, `firstPictureTime`; overlay
-   `connecttime/commandtime/videotime`). HALEC measures none of this, so it is unknown where the
+   `connecttime/commandtime/videotime`). Eufy But Local measures none of this, so it is unknown where the
    seconds go.
 8. **Robust switching.** Mirror the app's SN/channel check so stragglers of a displaced camera
    cannot end up in the next camera's stream. Check on hardware first whether it happens.
@@ -177,7 +177,7 @@ once it exceeds ~2 s.
 
 ## Cloud: login, device list, keys
 
-HALEC still needs the cloud at bridge start for login, the station/device list and keys
+Eufy But Local still needs the cloud at bridge start for login, the station/device list and keys
 (`STATUS.md`, `offline-test-plan.md` rows 5 and 6). Compared with the app:
 
 ### Endpoints: library 3.8.0 vs. app 6.1.11

@@ -1,6 +1,6 @@
-# HALEC – Home Assistant Local Eufy Cams
+# Eufy But Local
 
-**HALEC** brings events, thumbnails, live view and guard mode of **Eufy HomeBase 2** cameras to
+**Eufy But Local** brings events, thumbnails, live view and guard mode of **Eufy HomeBase 2** cameras to
 Home Assistant, delivered over a **LAN-only P2P connection** instead of Eufy's cloud push.
 
 > **Status: early development, not released.**
@@ -101,14 +101,64 @@ the Eufy app.
 
 ### 2. Bridge (Docker)
 
-The bridge must be on the same LAN as the HomeBase and use host networking.
+The bridge must be on the same LAN as the HomeBase and use host networking (a Linux host;
+Docker Desktop on macOS/Windows does not give the container the host's network).
+
+Images for amd64 and arm64 are published to `ghcr.io/awaescher/eufy-local-bridge` on every
+release: `latest` and version tags (`0.1.3`, `0.1`, `0`).
 
 ```bash
 cd bridge
-# edit docker-compose.yml: set BRIDGE_TOKEN to a long random value
-docker compose up -d --build
+mkdir -p data && sudo chown 1000:1000 data   # the container runs as uid 1000
+# edit docker-compose.yml: set BRIDGE_TOKEN to a long random value (e.g. openssl rand -hex 32)
+docker compose up -d
 docker logs -f eufy-local-bridge
 ```
+
+To build the image yourself, replace the `image:` line in `docker-compose.yml` with `build: .`
+and run `docker compose up -d --build`.
+
+#### Side by side with Home Assistant
+
+If Home Assistant runs in Docker too, one `docker-compose.yml` can hold both. Both containers
+use host networking, so Home Assistant reaches the bridge at `127.0.0.1:3080`.
+
+```yaml
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: "Europe/Berlin"
+    volumes:
+      - ./homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+
+  eufy-local-bridge:
+    image: ghcr.io/awaescher/eufy-local-bridge:latest
+    container_name: eufy-local-bridge
+    restart: unless-stopped
+    network_mode: host # required for the local UDP/P2P connection to the HomeBase
+    environment:
+      TZ: "Europe/Berlin"
+      BRIDGE_PORT: "3080"
+      BRIDGE_TOKEN: "change-me" # long random value, e.g. openssl rand -hex 32
+      # HB_IP: "192.168.1.50"   # optional, if discovery fails
+      # HB_SN: "T8010..."
+    volumes:
+      - ./eufy-bridge:/data # must be writable by uid 1000
+```
+
+```bash
+mkdir -p homeassistant eufy-bridge && sudo chown 1000:1000 eufy-bridge
+docker compose up -d
+```
+
+In the integration, enter host `127.0.0.1`, port `3080` and the token. If the bridge and Home
+Assistant are on different hosts, enter the bridge host's LAN IP instead.
 
 Settings (environment variables):
 
@@ -126,9 +176,9 @@ Settings (environment variables):
 
 ### 3. Integration (HACS)
 
-Add `https://github.com/awaescher/ha-local-eufy-cams` as a custom repository (type
+Add `https://github.com/awaescher/ha-eufy-but-local` as a custom repository (type
 *Integration*) in HACS, install
-"HALEC – Home Assistant Local Eufy Cams", restart Home Assistant, then add the integration and enter the
+"Eufy But Local", restart Home Assistant, then add the integration and enter the
 bridge host, port and token. If the bridge is not logged in yet, the flow asks for the Eufy
 account and the verification code.
 
@@ -144,6 +194,22 @@ cd bridge && npm run simulator              # bridge with a simulated HomeBase, 
 
 [devenv/](devenv/README.md) runs Home Assistant with this integration and the simulated
 HomeBase in Docker, no Eufy account or hardware needed.
+
+### Releases
+
+Every push to `main` is a release (`.github/workflows/release.yml`); pushes that only touch
+docs, `devenv/` or Markdown files are skipped. The workflow runs the CI, then:
+
+- picks the next version: major and minor from `bridge/package.json`, patch = highest
+  existing `v<major>.<minor>.*` tag + 1. To start a new minor or major version, set it in
+  `bridge/package.json` and `manifest.json` (e.g. `0.2.0`);
+- publishes the bridge image (`0.1.3`, `0.1`, `0`, `latest`);
+- tags `v0.1.3` and creates a GitHub release with `eufy_local.zip`, which HACS installs.
+
+The version is stamped into the image and the zip; nothing is committed back to `main`.
+
+The image goes to GHCR. To also publish to Docker Hub, add the repository variable
+`DOCKERHUB_USERNAME` and the secret `DOCKERHUB_TOKEN` (a Docker Hub access token).
 
 ## Disclaimer
 

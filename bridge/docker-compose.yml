@@ -1,8 +1,10 @@
 # Production setup: run next to Home Assistant, on the same LAN as the HomeBase.
 services:
   eufy-local-bridge:
-    build: .
-    image: eufy-local-bridge:local
+    # Published by .github/workflows/release.yml on every push to main. Tags: a version
+    # (e.g. 0.1.3), 0.1, 0 or latest. To build locally instead, replace the image line with
+    # "build: ." and run "docker compose up -d --build".
+    image: ghcr.io/awaescher/eufy-local-bridge:latest
     container_name: eufy-local-bridge
     restart: unless-stopped
     network_mode: host # required for the local UDP/P2P connection to the HomeBase

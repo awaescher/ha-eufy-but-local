@@ -1,1 +1,1 @@
-"""Tests for the HALEC integration."""
+"""Tests for the Eufy But Local integration."""

@@ -1,4 +1,4 @@
-"""HALEC (Home Assistant Local Eufy Cams).
+"""Eufy But Local.
 
 Talks to the eufy-local-bridge, which keeps a LAN-only P2P connection to the
 HomeBase. Only tested with HomeBase 2 (T8010).
