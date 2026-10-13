@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.loader import async_get_integration
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -19,6 +20,12 @@ from custom_components.eufy_but_local.const import CONF_CLOUD_PUSH, CONF_TOKEN, 
 from custom_components.eufy_but_local.diagnostics import async_get_config_entry_diagnostics
 
 from .conftest import CAM, STATION, FakeBridge, wait_for
+
+
+async def test_integration_ships_brand_icon(hass: HomeAssistant) -> None:
+    # Without brand/ the HA UI shows "icon not available" for custom integrations.
+    integration = await async_get_integration(hass, DOMAIN)
+    assert integration.has_branding
 
 
 async def test_setup_creates_devices_and_entities(
