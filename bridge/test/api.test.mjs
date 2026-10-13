@@ -21,7 +21,7 @@ const CAM = SIM_CAMERAS[0].sn;
 
 async function startBridge({ tfaCode = "123456", token = TOKEN } = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), "eufy-bridge-"));
-  const config = { ...readConfig({}), dataDir, pollSeconds: 0.1, liveIdleSeconds: 0.1, token };
+  const config = { ...readConfig({}), dataDir, pollSeconds: 0.1, refreshSeconds: 0.1, liveIdleSeconds: 0.1, token };
   const state = new BridgeState("test");
   const { lib, simulator } = createSimulator({ tfaCode });
   const connector = new EufyConnector({ state, config, lib });
@@ -304,6 +304,15 @@ describe("bridge API (simulated HomeBase)", () => {
     await until(() => b.state.cameras[CAM].properties.statusLed === true);
     await post(`/api/station/${SIM_STATION}/property`, { name: "alarmVolume", value: 12 });
     await until(() => b.state.stations[SIM_STATION].properties.alarmVolume === 12);
+  });
+
+  it("picks up settings changed in the Eufy app through the periodic refresh", async () => {
+    assert.equal(b.state.cameras[CAM].properties.nightvision, 1);
+    b.simulator.appChangesSetting(CAM, "nightvision", 2);
+    // Nothing is pushed; the next settings refresh (REFRESH_SECONDS in startBridge) shows it.
+    await until(() => b.state.cameras[CAM].properties.nightvision === 2);
+    b.simulator.appChangesSetting(CAM, "nightvision", 1);
+    await until(() => b.state.cameras[CAM].properties.nightvision === 1);
   });
 
   it("runs siren, snooze and reboot commands", async () => {

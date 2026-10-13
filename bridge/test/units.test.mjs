@@ -29,6 +29,8 @@ describe("config", () => {
     assert.equal(c.port, 3080);
     assert.equal(c.token, "");
     assert.equal(c.simulator, false);
+    assert.equal(c.debug, false);
+    assert.equal(readConfig({ BRIDGE_DEBUG: "true" }).debug, true);
     assert.equal(c.credentials, null);
   });
 

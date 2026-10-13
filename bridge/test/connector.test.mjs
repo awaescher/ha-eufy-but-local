@@ -14,7 +14,7 @@ import { BridgeState } from "../src/state.mjs";
 
 const tick = () => new Promise((r) => setImmediate(r));
 
-function setup({ initialize } = {}) {
+function setup({ initialize, env = {} } = {}) {
   const clients = [];
   class FakeClient extends EventEmitter {
     constructor(cfg) {
@@ -36,9 +36,11 @@ function setup({ initialize } = {}) {
     close() { this.closed = true; }
   }
   const state = new BridgeState("test");
-  const config = { ...readConfig({}), dataDir: mkdtempSync(join(tmpdir(), "eufy-conn-")), pollSeconds: 60 };
-  const connector = new EufyConnector({ state, config, lib: { EufySecurity: FakeClient, P2PConnectionType, GuardMode, PropertyName } });
-  return { state, connector, clients };
+  const config = { ...readConfig(env), dataDir: mkdtempSync(join(tmpdir(), "eufy-conn-")), pollSeconds: 60 };
+  const logs = [];
+  const log = (tag, msg) => logs.push(`[${tag}] ${msg}`);
+  const connector = new EufyConnector({ state, config, log, lib: { EufySecurity: FakeClient, P2PConnectionType, GuardMode, PropertyName } });
+  return { state, connector, clients, logs };
 }
 
 const station = (sn = "S1") => ({
@@ -105,6 +107,17 @@ describe("EufyConnector", () => {
     assert.equal(state.cameras.C1.battery, 12);
     assert.equal(state.cameras.OTHER, undefined);
     await connector.close();
+  });
+
+  it("logs property values only with BRIDGE_DEBUG", async () => {
+    for (const [env, expected] of [[{}, 0], [{ BRIDGE_DEBUG: "1" }, 1]]) {
+      const { connector, clients, logs } = setup({ env });
+      await connector.start({ email: "a", password: "b" });
+      clients[0].emit("device added", camera());
+      clients[0].emit("device property changed", camera(), "wifiRssi", -56);
+      assert.equal(logs.filter((l) => l.includes("property Cam wifiRssi=-56")).length, expected);
+      await connector.close();
+    }
   });
 
   it("ignores events from a client that was replaced", async () => {
@@ -175,6 +188,27 @@ describe("EufyConnector", () => {
     await connector.setCloudPush(false);
     assert.deepEqual(c.calls, ["push open", "push close"]);
     assert.equal(connector.state.cloudPush, false);
+  });
+
+  it("asks the HomeBase for the camera settings periodically while P2P is connected", async () => {
+    const { connector, clients } = setup();
+    connector.config.refreshSeconds = 0.02;
+    await connector.start({ email: "a", password: "b" });
+    let asked = 0;
+    const st = { ...station("S1"), getCameraInfo: () => asked++ };
+    clients[0].emit("station added", st);
+    clients[0].emit("station connect", st);
+    await new Promise((r) => setTimeout(r, 120));
+    assert.ok(asked >= 3, `asked ${asked} times`);
+    clients[0].emit("station close", st);
+    const after = asked;
+    await new Promise((r) => setTimeout(r, 80));
+    assert.equal(asked, after, "stops when P2P closes");
+    connector.config.refreshSeconds = 0;
+    clients[0].emit("station connect", st);
+    await new Promise((r) => setTimeout(r, 80));
+    assert.equal(asked, after, "0 disables the refresh");
+    await connector.close();
   });
 
   it("translates guard modes and rejects unknown ones", async () => {

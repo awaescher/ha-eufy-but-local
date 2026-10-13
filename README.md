@@ -177,10 +177,12 @@ with the defaults, and you log in from Home Assistant. In practice, set only
 | `BRIDGE_HOST` | optional | `0.0.0.0` | listen address |
 | `HOMEBASE_IP`, `HOMEBASE_SERIAL` | optional | – | pin the HomeBase address if discovery fails (serial is logged on first start) |
 | `POLL_SEC` | optional | `5` | event database poll interval |
+| `PROPERTY_REFRESH_SEC` | optional | `60` | how often the bridge asks the HomeBase (locally, over P2P) for the current camera settings, so changes made in the Eufy app show up in Home Assistant; `0` = only when connecting |
 | `LIVE_MAX_SEC` | optional | `120` | maximum livestream duration |
 | `LIVE_IDLE_SEC` | optional | `10` | stop the stream this long after the last viewer left |
 | `DATA_DIR` | optional | `/data` | session and credentials (file mode 600) |
 | `EUFY_EMAIL`, `EUFY_PASSWORD`, `EUFY_COUNTRY` | optional | – | log in without Home Assistant; otherwise log in from the integration |
+| `BRIDGE_DEBUG` | optional | – | `1` = also log every property value the HomeBase reports (battery, Wi-Fi signal, …) |
 | `EUFY_SIMULATOR` | development only | – | `1` = simulated HomeBase |
 
 ### 3. Integration (HACS)
