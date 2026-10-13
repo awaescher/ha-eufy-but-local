@@ -42,7 +42,6 @@ container has no Node runtime. See `docs/adr/0001-bridge-plus-integration.md`.
 5. Comments only where they explain *why*, not *what*.
 6. Keep the bridge API contract in sync on both sides (see "API contract" below) and update
    `tests/conftest.py` (`FakeBridge`) when it changes.
-
 ## Commands
 
 ```bash
