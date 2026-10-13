@@ -41,6 +41,10 @@ With this repository (bridge natively on macOS, Home Assistant 2026.10.1 from `d
 
 Not yet verified on hardware:
 
+- The periodic settings refresh (`PROPERTY_REFRESH_SEC`, default 60 s): it should make changes
+  from the Eufy app (e.g. night vision, which the HomeBase does not push) show up. Check that
+  it does, and that it does not wake battery cameras or drain them (watch battery over a day).
+
 - A rising event count when someone walks past a camera (the core "local event" claim).
 - v2 thumbnails and stream switching in the running bridge (fixed after the first test).
 - Livestream of the T8142 (2C Pro) cameras; WebRTC (go2rtc) on a real HA install.

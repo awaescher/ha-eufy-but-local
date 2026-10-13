@@ -93,6 +93,18 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     getPropertyValue: (name) => (name === PropertyName.StationGuardMode ? station.guard : undefined),
     settings: { ...SIM_STATION_SETTINGS },
     getProperties: () => ({ ...station.settings, alarm: false, currentMode: station.guard, sdStatus: 0, softwareVersion: "3.2.4.6" }),
+    // Like the real HomeBase: settings changed in the Eufy app are not pushed; they show up when
+    // the camera info is requested.
+    getCameraInfo: () => {
+      for (const c of cameras) {
+        for (const [name, value] of Object.entries(c.settings)) {
+          if (c.reported[name] !== value) {
+            c.reported[name] = value;
+            setTimeout(() => instance?.emit("device property changed", devices.find((d) => d.getSerial() === c.sn), name, value), 5);
+          }
+        }
+      }
+    },
     // Commands answer like the real HomeBase: with a command result.
     triggerDeviceAlarmSound: () => station.ack(),
     resetDeviceAlarmSound: () => station.ack(),
@@ -134,6 +146,7 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     ...c,
     settings: { ...SIM_CAMERA_SETTINGS, ...(c.humansOnly ? { motionDetectionType: 0 } : {}) },
   }));
+  for (const c of cameras) c.reported = { ...c.settings };
   const devices = cameras.map((c) => ({
     getSerial: () => c.sn,
     getName: () => c.name,
@@ -171,7 +184,9 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
       const device = devices.find((d) => d.getSerial() === sn);
       if (!device) throw new Error(`unknown device ${sn}`);
       if (!device.getPropertiesMetadata()[name]?.writeable) throw new Error(`property ${name} is read only or unknown`);
-      cameras.find((c) => c.sn === sn).settings[name] = value;
+      const cam = cameras.find((c) => c.sn === sn);
+      cam.settings[name] = value;
+      cam.reported[name] = value;
       setTimeout(() => {
         this.emit("station command result", station, { command_type: 1, channel: 0, return_code: 0 });
         this.emit("device property changed", device, name, value);
@@ -277,8 +292,15 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     setTimeout(() => instance?.emit("device person detected", device, true), 300);
   }
 
+  /** Changes a setting the way the Eufy app does: silently; only a settings refresh shows it. */
+  function appChangesSetting(sn, name, value) {
+    const cam = cameras.find((c) => c.sn === sn);
+    if (!cam) throw new RangeError(`unknown camera ${sn}`);
+    cam.settings[name] = value;
+  }
+
   return {
     lib: { EufySecurity, P2PConnectionType, GuardMode, PropertyName },
-    simulator: { triggerEvent, cameras },
+    simulator: { triggerEvent, appChangesSetting, cameras },
   };
 }

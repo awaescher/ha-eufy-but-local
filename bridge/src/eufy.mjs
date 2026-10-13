@@ -26,6 +26,8 @@ export class EufyConnector {
     this.config = config;
     this.lib = lib;
     this.log = log;
+    // Chatty output (every property value the HomeBase reports) only with BRIDGE_DEBUG.
+    this.debug = config.debug ? log : () => {};
     this.client = null;
     this.openPush = null;
     this.state.setCloudPush(Boolean(config.cloudPush));
@@ -33,6 +35,7 @@ export class EufyConnector {
     this.captcha = null; // data URI
     this.stations = new Map();
     this.pollers = new Map();
+    this.refreshers = new Map();
     this.pathStation = new Map();
 
     this.images = new ImageStore({
@@ -277,8 +280,9 @@ export class EufyConnector {
   }
 
   async close() {
-    for (const t of this.pollers.values()) clearInterval(t);
+    for (const t of [...this.pollers.values(), ...this.refreshers.values()]) clearInterval(t);
     this.pollers.clear();
+    this.refreshers.clear();
     this.live.close();
     this.images.close();
     if (this.client) {
@@ -354,11 +358,22 @@ export class EufyConnector {
       };
       poll();
       this.pollers.set(sn, setInterval(poll, this.config.pollSeconds * 1000));
+
+      // eufy-security-client reads the camera settings at connect and once more after 12 h.
+      clearInterval(this.refreshers.get(sn));
+      if (this.config.refreshSeconds > 0 && typeof st.getCameraInfo === "function") {
+        const refresh = () => {
+          try { st.getCameraInfo(); } catch (err) { this.log("local", `settings refresh failed: ${err.message}`); }
+        };
+        this.refreshers.set(sn, setInterval(refresh, this.config.refreshSeconds * 1000));
+      }
     });
     const disconnected = (st, reason) => {
       const sn = st.getSerial();
       clearInterval(this.pollers.get(sn));
       this.pollers.delete(sn);
+      clearInterval(this.refreshers.get(sn));
+      this.refreshers.delete(sn);
       s.upsertStation(sn, { p2p: false });
       this.log("local", `P2P to ${st.getName()} closed${reason ? `: ${reason}` : ""}`);
     };
@@ -442,7 +457,7 @@ export class EufyConnector {
       if (name === PropertyName.DeviceBattery) s.upsertCamera(d.getSerial(), { battery: value });
       if (CAMERA_PROPERTIES.includes(name)) s.upsertCamera(d.getSerial(), { properties: { [name]: value } });
       // Shows which changes reach the bridge locally (e.g. made in the Eufy app).
-      if (name !== "picture") this.log("local", `property ${d.getName()} ${name}=${JSON.stringify(value)}`);
+      if (name !== "picture") this.debug("local", `property ${d.getName()} ${name}=${JSON.stringify(value)}`);
     });
 
     // --- cloud push (optional, off by default: tells person vs. motion)
