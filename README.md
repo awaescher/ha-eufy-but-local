@@ -166,19 +166,22 @@ docker compose up -d
 In the integration, enter host `127.0.0.1`, port `3080` and the token. If the bridge and Home
 Assistant are on different hosts, enter the bridge host's LAN IP instead.
 
-Settings (environment variables):
+Settings (environment variables). None of them is strictly required: the bridge starts
+with the defaults, and you log in from Home Assistant. In practice, set only
+`BRIDGE_TOKEN`, and leave the rest alone unless you need them.
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `BRIDGE_PORT` | `3080` | HTTP port |
-| `BRIDGE_TOKEN` | – | API token (strongly recommended) |
-| `HOMEBASE_IP`, `HOMEBASE_SERIAL` | – | pin the HomeBase address (serial is logged on first start) |
-| `POLL_SEC` | `5` | event database poll interval |
-| `LIVE_MAX_SEC` | `120` | maximum livestream duration |
-| `LIVE_IDLE_SEC` | `10` | stop the stream this long after the last viewer left |
-| `DATA_DIR` | `/data` | session and credentials (file mode 600) |
-| `EUFY_EMAIL`, `EUFY_PASSWORD`, `EUFY_COUNTRY` | – | optional; otherwise log in from Home Assistant |
-| `EUFY_SIMULATOR` | – | `1` = simulated HomeBase for development |
+| Variable | Required? | Default | Meaning |
+|---|---|---|---|
+| `BRIDGE_TOKEN` | **recommended** | – | API token; enter the same value in the integration. Without it, anyone on the LAN can use the API |
+| `BRIDGE_PORT` | optional | `3080` | HTTP port |
+| `BRIDGE_HOST` | optional | `0.0.0.0` | listen address |
+| `HOMEBASE_IP`, `HOMEBASE_SERIAL` | optional | – | pin the HomeBase address if discovery fails (serial is logged on first start) |
+| `POLL_SEC` | optional | `5` | event database poll interval |
+| `LIVE_MAX_SEC` | optional | `120` | maximum livestream duration |
+| `LIVE_IDLE_SEC` | optional | `10` | stop the stream this long after the last viewer left |
+| `DATA_DIR` | optional | `/data` | session and credentials (file mode 600) |
+| `EUFY_EMAIL`, `EUFY_PASSWORD`, `EUFY_COUNTRY` | optional | – | log in without Home Assistant; otherwise log in from the integration |
+| `EUFY_SIMULATOR` | development only | – | `1` = simulated HomeBase |
 
 ### 3. Integration (HACS)
 
