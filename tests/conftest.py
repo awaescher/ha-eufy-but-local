@@ -1,4 +1,4 @@
-"""Shared fixtures: a fake eufy-local-bridge served over real HTTP."""
+"""Shared fixtures: a fake eufy-but-local bridge served over real HTTP."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ from homeassistant.core import HomeAssistant
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.eufy_local import config_flow
-from custom_components.eufy_local.const import CONF_TOKEN, DOMAIN
+from custom_components.eufy_but_local import config_flow
+from custom_components.eufy_but_local.const import CONF_TOKEN, DOMAIN
 
 TOKEN = "secret-token"
 STATION = "T8010TEST0000001"

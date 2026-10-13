@@ -12,7 +12,7 @@ existing integrations. It consists of two parts:
 | Part | Path | Language | Role |
 |---|---|---|---|
 | Bridge | `bridge/` | Node.js (ESM) | Talks to the HomeBase via `eufy-security-client`, exposes a small HTTP/SSE API |
-| Integration | `custom_components/eufy_local/` | Python | HACS custom integration, consumes the bridge API |
+| Integration | `custom_components/eufy_but_local/` | Python | HACS custom integration, consumes the bridge API |
 
 Why two parts: the reverse-engineered Eufy protocol only exists as a Node library; the HA
 container has no Node runtime. See `docs/adr/0001-bridge-plus-integration.md`.
@@ -38,7 +38,7 @@ container has no Node runtime. See `docs/adr/0001-bridge-plus-integration.md`.
    tests, fixtures or docs. Use the simulator serials (`T8010SIM…`, `T8113SIM…`) and
    `example.com`/`192.168.1.x`. The maintainer's private values must never be committed.
 4. **English** for code, comments, logs, commit messages and docs. German exists only in
-   `custom_components/eufy_local/translations/de.json`.
+   `custom_components/eufy_but_local/translations/de.json`.
 5. Comments only where they explain *why*, not *what*.
 6. Keep the bridge API contract in sync on both sides (see "API contract" below) and update
    `tests/conftest.py` (`FakeBridge`) when it changes.
@@ -83,7 +83,7 @@ bridge/
   src/simulator.mjs     fake HomeBase implementing the used subset of eufy-security-client
   simulator-assets/     test video (H.264 Annex-B) and thumbnails, generated with ffmpeg
   test/                 node:test suites
-custom_components/eufy_local/
+custom_components/eufy_but_local/
   api.py                BridgeClient (REST + SSE parser)
   coordinator.py        DataUpdateCoordinator; SSE push with polling fallback
   config_flow.py        bridge -> login -> 2FA/captcha; reauth for the token
@@ -93,7 +93,7 @@ tests/                  pytest suites + FakeBridge (conftest.py)
 devenv/                 Docker: Home Assistant + bridge simulator; stream_probe.py (HA stream worker)
 .github/workflows/      ci.yml (tests, ruff, hassfest, HACS, image build; PRs and reused),
                         release.yml (every push to main: CI, next patch version, image to
-                        GHCR + optional Docker Hub, tag, GitHub release with eufy_local.zip)
+                        GHCR + optional Docker Hub, tag, GitHub release with eufy_but_local.zip)
 docs/                   STATUS.md, architecture.md, offline-test-plan.md, adr/
 ```
 

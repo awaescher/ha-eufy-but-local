@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Brücke verbinden",
-        "description": "Adresse des eufy-local-bridge-Containers (im selben Netz wie die HomeBase).",
+        "description": "Adresse des eufy-but-local-Brückencontainers (im selben Netz wie die HomeBase).",
         "data": {
           "host": "Host",
           "port": "Port",

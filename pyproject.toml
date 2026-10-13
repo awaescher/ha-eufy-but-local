@@ -12,7 +12,7 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 
 [tool.coverage.run]
-source = ["custom_components/eufy_local"]
+source = ["custom_components/eufy_but_local"]
 
 [tool.ruff]
 line-length = 100

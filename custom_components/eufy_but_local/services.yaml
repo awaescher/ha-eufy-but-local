@@ -1,7 +1,7 @@
 snooze:
   target:
     entity:
-      integration: eufy_local
+      integration: eufy_but_local
       domain: camera
   fields:
     duration:

@@ -15,8 +15,8 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.eufy_local.const import CONF_CLOUD_PUSH, CONF_TOKEN, DOMAIN
-from custom_components.eufy_local.diagnostics import async_get_config_entry_diagnostics
+from custom_components.eufy_but_local.const import CONF_CLOUD_PUSH, CONF_TOKEN, DOMAIN
+from custom_components.eufy_but_local.diagnostics import async_get_config_entry_diagnostics
 
 from .conftest import CAM, STATION, FakeBridge, wait_for
 

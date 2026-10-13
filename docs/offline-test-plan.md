@@ -23,4 +23,4 @@ whole network including the bridge host.
 Notes:
 - The P2P session derives its command key locally from serial number and P2P DID, but a
   (re)connect first calls `renewDSKKey()`, which needs the cloud once the key has expired.
-- Keep the bridge console output (`docker logs -f eufy-local-bridge`) with the results.
+- Keep the bridge console output (`docker logs -f eufy-but-local`) with the results.

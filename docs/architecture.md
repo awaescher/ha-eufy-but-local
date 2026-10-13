@@ -3,10 +3,10 @@
 ```
  Eufy cloud ──(login, device list, optional push)──┐
                                                     │
- HomeBase 2 ◄──── P2P, LAN only (UDP) ────► eufy-local-bridge (Node, Docker, host network)
+ HomeBase 2 ◄──── P2P, LAN only (UDP) ────► eufy-but-local (Node, Docker, host network)
    │  event database                         │  HTTP + SSE API (token)
    │  thumbnails                             ▼
-   └─ cameras (battery)            Home Assistant ── custom_components/eufy_local
+   └─ cameras (battery)            Home Assistant ── custom_components/eufy_but_local
 ```
 
 ## Data flows

@@ -88,6 +88,7 @@ export class EufyConnector {
           username: credentials.email,
           password: credentials.password,
           country: credentials.country || "DE",
+          // Kept from the old name: changing it makes Eufy ask for a new 2FA code.
           trustedDeviceName: "eufy-local-bridge",
           persistentDir: this.config.dataDir,
           p2pConnectionSetup: P2PConnectionType.ONLY_LOCAL,

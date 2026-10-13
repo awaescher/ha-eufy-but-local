@@ -1,5 +1,5 @@
 {
-  "domain": "eufy_local",
+  "domain": "eufy_but_local",
   "name": "Eufy But Local",
   "after_dependencies": [
     "stream"

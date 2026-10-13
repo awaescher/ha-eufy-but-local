@@ -9,7 +9,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 import pytest
 
-from custom_components.eufy_local.api import BridgeAuthError, BridgeClient, BridgeError
+from custom_components.eufy_but_local.api import BridgeAuthError, BridgeClient, BridgeError
 
 type Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
 

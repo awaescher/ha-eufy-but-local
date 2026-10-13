@@ -1,6 +1,6 @@
 # Development environment: Home Assistant with this integration mounted, and the bridge
 # with a simulated HomeBase. No Eufy account or hardware needed. See README.md.
-name: eufy-local-dev
+name: eufy-but-local-dev
 
 services:
   bridge:

@@ -29,7 +29,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 import pytest
 
-from custom_components.eufy_local.const import DOMAIN
+from custom_components.eufy_but_local.const import DOMAIN
 
 from .conftest import CAM, STATION, FakeBridge, wait_for
 

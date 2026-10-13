@@ -31,7 +31,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
-from custom_components.eufy_local.const import EVENT_ACTIVE_SECONDS
+from custom_components.eufy_but_local.const import EVENT_ACTIVE_SECONDS
 
 from .conftest import CAM, JPEG, STATION, TOKEN, FakeBridge, wait_for
 

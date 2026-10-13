@@ -1,9 +1,15 @@
 # Eufy But Local
 
+[![Release](https://img.shields.io/github/v/release/awaescher/ha-eufy-but-local?sort=semver)](https://github.com/awaescher/ha-eufy-but-local/releases/latest)
+[![Release workflow](https://github.com/awaescher/ha-eufy-but-local/actions/workflows/release.yml/badge.svg)](https://github.com/awaescher/ha-eufy-but-local/actions/workflows/release.yml)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
+[![Bridge image](https://img.shields.io/badge/ghcr.io-eufy--but--local-blue?logo=docker)](https://github.com/awaescher/ha-eufy-but-local/pkgs/container/eufy-but-local)
+[![License: MIT](https://img.shields.io/github/license/awaescher/ha-eufy-but-local)](LICENSE)
+
 **Eufy But Local** brings events, thumbnails, live view and guard mode of **Eufy HomeBase 2** cameras to
 Home Assistant, delivered over a **LAN-only P2P connection** instead of Eufy's cloud push.
 
-> **Status: early development, not released.**
+> **Status: early development, pre-release (0.x).**
 > What is and is not verified on real hardware is tracked in [docs/STATUS.md](docs/STATUS.md).
 
 ## Tested hardware
@@ -28,7 +34,7 @@ by default and switched in the integration's options.
 ## How it works
 
 ```
-HomeBase 2 ◄── P2P (LAN only) ──► eufy-local-bridge (Docker) ◄── HTTP/SSE ──► Home Assistant
+HomeBase 2 ◄── P2P (LAN only) ──► eufy-but-local (Docker) ◄── HTTP/SSE ──► Home Assistant
                                         │
                                         └── Eufy cloud: login + device list at start
 ```
@@ -65,7 +71,7 @@ only matter for Eufy's app are created disabled):
   spotlight with brightness, night vision, status LED, microphone, speaker and volume, audio
   recording, anti-theft detection, clip length, retrigger interval, power mode, streaming and
   recording quality (2C Pro), siren; diagnostics: Wi-Fi signal, battery temperature, charging,
-  firmware. Action `eufy_local.snooze`.
+  firmware. Action `eufy_but_local.snooze`.
 - HomeBase: alarm volume, prompt volume, alarm tone, siren, alarm sensor, restart, firmware.
 
 A camera set to detect humans only reports each new local recording also as a `person` event
@@ -104,7 +110,7 @@ the Eufy app.
 The bridge must be on the same LAN as the HomeBase and use host networking (a Linux host;
 Docker Desktop on macOS/Windows does not give the container the host's network).
 
-Images for amd64 and arm64 are published to `ghcr.io/awaescher/eufy-local-bridge` on every
+Images for amd64 and arm64 are published to `ghcr.io/awaescher/eufy-but-local` on every
 release: `latest` and version tags (`0.1.3`, `0.1`, `0`).
 
 ```bash
@@ -112,7 +118,7 @@ cd bridge
 mkdir -p data && sudo chown 1000:1000 data   # the container runs as uid 1000
 # edit docker-compose.yml: set BRIDGE_TOKEN to a long random value (e.g. openssl rand -hex 32)
 docker compose up -d
-docker logs -f eufy-local-bridge
+docker logs -f eufy-but-local
 ```
 
 To build the image yourself, replace the `image:` line in `docker-compose.yml` with `build: .`
@@ -137,9 +143,9 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /run/dbus:/run/dbus:ro
 
-  eufy-local-bridge:
-    image: ghcr.io/awaescher/eufy-local-bridge:latest
-    container_name: eufy-local-bridge
+  eufy-but-local:
+    image: ghcr.io/awaescher/eufy-but-local:latest
+    container_name: eufy-but-local
     restart: unless-stopped
     network_mode: host # required for the local UDP/P2P connection to the HomeBase
     environment:
@@ -176,8 +182,10 @@ Settings (environment variables):
 
 ### 3. Integration (HACS)
 
-Add `https://github.com/awaescher/ha-eufy-but-local` as a custom repository (type
-*Integration*) in HACS, install
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=awaescher&repository=ha-eufy-but-local&category=integration)
+
+Or add `https://github.com/awaescher/ha-eufy-but-local` as a custom repository (type
+*Integration*) in HACS. Install
 "Eufy But Local", restart Home Assistant, then add the integration and enter the
 bridge host, port and token. If the bridge is not logged in yet, the flow asks for the Eufy
 account and the verification code.
@@ -204,7 +212,7 @@ docs, `devenv/` or Markdown files are skipped. The workflow runs the CI, then:
   existing `v<major>.<minor>.*` tag + 1. To start a new minor or major version, set it in
   `bridge/package.json` and `manifest.json` (e.g. `0.2.0`);
 - publishes the bridge image (`0.1.3`, `0.1`, `0`, `latest`);
-- tags `v0.1.3` and creates a GitHub release with `eufy_local.zip`, which HACS installs.
+- tags `v0.1.3` and creates a GitHub release with `eufy_but_local.zip`, which HACS installs.
 
 The version is stamped into the image and the zip; nothing is committed back to `main`.
 

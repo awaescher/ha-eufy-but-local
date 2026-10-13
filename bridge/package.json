@@ -1,8 +1,8 @@
 {
-  "name": "eufy-local-bridge",
+  "name": "eufy-but-local",
   "version": "0.1.0",
   "private": true,
-  "description": "Eufy But Local bridge between a Eufy HomeBase 2 and the Home Assistant integration eufy_local",
+  "description": "Eufy But Local bridge between a Eufy HomeBase 2 and the Home Assistant integration eufy_but_local",
   "type": "module",
   "main": "server.mjs",
   "scripts": {
