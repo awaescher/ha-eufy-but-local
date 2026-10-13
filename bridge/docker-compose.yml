@@ -14,8 +14,8 @@ services:
       # Strongly recommended. Enter the same value in the Home Assistant integration.
       BRIDGE_TOKEN: "change-me"
       # Optional: pin the HomeBase address (the serial is printed in the log on first start)
-      # HB_IP: "192.168.1.50"
-      # HB_SN: "T8010..."
+      # HOMEBASE_IP: "192.168.1.50"
+      # HOMEBASE_SERIAL: "T8010..."
     volumes:
       # Session and credentials (file mode 600). Must be writable by uid 1000 (user "node").
       - ./data:/data

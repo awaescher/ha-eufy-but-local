@@ -6,7 +6,7 @@ Status: accepted (2026-10-13)
 
 Configure `eufy-security-client` with `p2pConnectionSetup: ONLY_LOCAL` (no relay through Eufy
 servers) and `pollingIntervalMinutes: 0` (no periodic cloud refresh). Optionally pin the
-station address with `HB_SN` + `HB_IP`. The bridge container runs with `network_mode: host`
+station address with `HOMEBASE_SERIAL` + `HOMEBASE_IP`. The bridge container runs with `network_mode: host`
 because local discovery uses UDP broadcast/port 32108.
 
 ## Consequences

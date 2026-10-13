@@ -1,8 +1,16 @@
-FROM node:22-alpine
-
+# Dependencies are pure JavaScript, so they are installed once on the build host's platform and
+# copied into every target image. Running npm under QEMU for arm64 crashed with
+# "Illegal instruction" on GitHub's runners.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+
+FROM node:22-alpine
+
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json package-lock.json ./
 COPY server.mjs ./
 COPY src ./src
 COPY simulator-assets ./simulator-assets

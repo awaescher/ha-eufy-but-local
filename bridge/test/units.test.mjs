@@ -37,6 +37,12 @@ describe("config", () => {
     assert.deepEqual(readConfig({ EUFY_EMAIL: "a@b.c", EUFY_PASSWORD: "x" }).credentials, { email: "a@b.c", password: "x", country: "DE" });
   });
 
+  it("pins the HomeBase from HOMEBASE_IP and HOMEBASE_SERIAL", () => {
+    const c = readConfig({ HOMEBASE_IP: "192.168.1.50", HOMEBASE_SERIAL: "T8010SIM0000001" });
+    assert.equal(c.stationIp, "192.168.1.50");
+    assert.equal(c.stationSerial, "T8010SIM0000001");
+  });
+
   it("rejects invalid numbers", () => {
     assert.throws(() => readConfig({ BRIDGE_PORT: "abc" }), /BRIDGE_PORT/);
     assert.throws(() => readConfig({ POLL_SEC: "-1" }), /POLL_SEC/);

@@ -16,8 +16,8 @@ export function readConfig(env = process.env) {
     pollSeconds: int(env.POLL_SEC, 5, "POLL_SEC"),
     liveMaxSeconds: int(env.LIVE_MAX_SEC, 120, "LIVE_MAX_SEC"),
     liveIdleSeconds: int(env.LIVE_IDLE_SEC, 10, "LIVE_IDLE_SEC"),
-    stationIp: env.HB_IP || "",
-    stationSerial: env.HB_SN || "",
+    stationIp: env.HOMEBASE_IP || "",
+    stationSerial: env.HOMEBASE_SERIAL || "",
     simulator: ["1", "true", "yes"].includes(String(env.EUFY_SIMULATOR || "").toLowerCase()),
     // Off by default (AGENTS.md rule 0); Home Assistant switches it in the integration options.
     cloudPush: ["1", "true", "yes"].includes(String(env.EUFY_CLOUD_PUSH || "").toLowerCase()),
