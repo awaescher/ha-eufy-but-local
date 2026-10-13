@@ -92,7 +92,7 @@ your network instead of through Eufy's servers. Ethernet or Wi-Fi makes no diffe
 - the bridge host and the HomeBase are in the same IP network (the bridge finds the HomeBase by
   UDP broadcast);
 - the Wi-Fi does not isolate clients from each other (guest networks, "AP/client isolation")
-  and passes broadcasts. If discovery fails, set `HB_IP` (and `HB_SN`) to skip it;
+  and passes broadcasts. If discovery fails, set `HOMEBASE_IP` (and `HOMEBASE_SERIAL`) to skip it;
 - in Docker the bridge uses host networking (`network_mode: host`).
 
 Tested so far with the bridge host on Ethernet; Wi-Fi for the bridge host is untested.
@@ -152,8 +152,8 @@ services:
       TZ: "Europe/Berlin"
       BRIDGE_PORT: "3080"
       BRIDGE_TOKEN: "change-me" # long random value, e.g. openssl rand -hex 32
-      # HB_IP: "192.168.1.50"   # optional, if discovery fails
-      # HB_SN: "T8010..."
+      # HOMEBASE_IP: "192.168.1.50"   # optional, if discovery fails
+      # HOMEBASE_SERIAL: "T8010..."
     volumes:
       - ./eufy-bridge:/data # must be writable by uid 1000
 ```
@@ -172,7 +172,7 @@ Settings (environment variables):
 |---|---|---|
 | `BRIDGE_PORT` | `3080` | HTTP port |
 | `BRIDGE_TOKEN` | – | API token (strongly recommended) |
-| `HB_IP`, `HB_SN` | – | pin the HomeBase address (serial is logged on first start) |
+| `HOMEBASE_IP`, `HOMEBASE_SERIAL` | – | pin the HomeBase address (serial is logged on first start) |
 | `POLL_SEC` | `5` | event database poll interval |
 | `LIVE_MAX_SEC` | `120` | maximum livestream duration |
 | `LIVE_IDLE_SEC` | `10` | stop the stream this long after the last viewer left |
