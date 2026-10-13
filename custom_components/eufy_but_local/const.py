@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Final
 
-DOMAIN: Final = "eufy_local"
+DOMAIN: Final = "eufy_but_local"
 MANUFACTURER: Final = "eufy"
 
 CONF_TOKEN: Final = "token"

@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.eufy_local.const import CONF_CODE, CONF_COUNTRY, CONF_TOKEN, DOMAIN
+from custom_components.eufy_but_local.const import CONF_CODE, CONF_COUNTRY, CONF_TOKEN, DOMAIN
 
 from .conftest import STATION, TOKEN, FakeBridge
 

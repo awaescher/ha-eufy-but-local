@@ -1,4 +1,4 @@
-// eufy-local-bridge entry point.
+// eufy-but-local bridge entry point.
 
 import { readFileSync } from "node:fs";
 import { CredentialStore } from "./src/credentials.mjs";
@@ -31,7 +31,7 @@ const connector = new EufyConnector({ state, config, lib, log });
 const server = createApi({ state, connector, credentials, simulator, token: config.token, log });
 
 server.listen(config.port, config.host, () => {
-  log("bridge", `eufy-local-bridge ${version} listening on ${config.host}:${config.port}${config.token ? " (token required)" : ""}`);
+  log("bridge", `eufy-but-local bridge ${version} listening on ${config.host}:${config.port}${config.token ? " (token required)" : ""}`);
   if (!config.token) log("bridge", "WARNING: BRIDGE_TOKEN is not set – anyone on your network can use this bridge");
   const cred = config.credentials ?? credentials.load();
   if (cred) connector.start(cred);

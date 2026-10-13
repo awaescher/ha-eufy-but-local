@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Connect bridge",
-        "description": "Address of the eufy-local-bridge container (same network as the HomeBase).",
+        "description": "Address of the eufy-but-local bridge container (same network as the HomeBase).",
         "data": {
           "host": "Host",
           "port": "Port",

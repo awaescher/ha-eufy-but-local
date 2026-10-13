@@ -1,4 +1,4 @@
-"""Client for the eufy-local-bridge HTTP API."""
+"""Client for the eufy-but-local bridge HTTP API."""
 
 from __future__ import annotations
 

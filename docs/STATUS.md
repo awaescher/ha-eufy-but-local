@@ -77,13 +77,17 @@ Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line cove
 1. Verify HA's built-in go2rtc (WebRTC) with the raw H.264 source. The `stream` component
    (HLS) works against the simulator once the camera sets `use_wallclock_as_timestamps`
    (ADR 0006, `devenv/stream_probe.py`). If go2rtc fails, serve MPEG-TS or fMP4 instead.
-2. Push to GitHub and check the first CI run (`.github/workflows/ci.yml`). `hassfest` passes
-   locally (Docker image); the HACS check can only run on GitHub (needs repo description and
-   topics). Every push to main is a release (`release.yml`): CI, next patch version, image
-   (versioned + `latest`), tag and GitHub release with `eufy_local.zip`. After the first run,
-   make the GHCR package public. Docker Hub is optional (variable `DOCKERHUB_USERNAME`,
-   secret `DOCKERHUB_TOKEN`).
-3. Real-hardware validation of everything listed above, then update this file and the README.
+2. Real-hardware validation of everything listed above, then update this file and the README.
+3. Optional: submit to the HACS default list and to home-assistant/brands (icon/logo; the
+   HACS check currently ignores `brands`). Docker Hub is optional (variable
+   `DOCKERHUB_USERNAME`, secret `DOCKERHUB_TOKEN`).
+
+Done: the first release (v0.1.0) went through `release.yml` on GitHub: CI including hassfest
+and the HACS check, the image (amd64 + arm64, public), the tag, and the GitHub release.
+v0.1.0 still used the old names (image `ghcr.io/awaescher/eufy-local-bridge`, domain
+`eufy_local`, `eufy_local.zip`); from v0.1.1 on they are `ghcr.io/awaescher/eufy-but-local`,
+`eufy_but_local` and `eufy_but_local.zip`. The bridge still registers with Eufy as trusted
+device `eufy-local-bridge` so existing sessions need no new 2FA code.
 
 ## Known risks
 

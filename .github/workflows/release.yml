@@ -6,11 +6,11 @@ name: Release
 #      v<major>.<minor>.* tag + 1 (or the patch from package.json if there is none yet).
 #      To start 0.2.x, set "version": "0.2.0" in bridge/package.json (and manifest.json).
 #   3. Bridge image for amd64 and arm64:
-#        ghcr.io/<owner>/eufy-local-bridge   always (GITHUB_TOKEN)
-#        docker.io/<user>/eufy-local-bridge  only with variable DOCKERHUB_USERNAME and
+#        ghcr.io/<owner>/eufy-but-local   always (GITHUB_TOKEN)
+#        docker.io/<user>/eufy-but-local  only with variable DOCKERHUB_USERNAME and
 #                                            secret DOCKERHUB_TOKEN
 #      Tags: <major>.<minor>.<patch>, <major>.<minor>, <major>, latest.
-#   4. Tag v<version> and GitHub release with eufy_local.zip (HACS installs that zip).
+#   4. Tag v<version> and GitHub release with eufy_but_local.zip (HACS installs that zip).
 # The version is written into the image and the zip only; nothing is committed back to main,
 # so the run cannot trigger itself and branch protection does not get in the way.
 on:
@@ -92,8 +92,8 @@ jobs:
         with:
           # Empty lines are ignored, so Docker Hub drops out when the variable is unset.
           images: |
-            ghcr.io/${{ github.repository_owner }}/eufy-local-bridge
-            ${{ vars.DOCKERHUB_USERNAME != '' && format('docker.io/{0}/eufy-local-bridge', vars.DOCKERHUB_USERNAME) || '' }}
+            ghcr.io/${{ github.repository_owner }}/eufy-but-local
+            ${{ vars.DOCKERHUB_USERNAME != '' && format('docker.io/{0}/eufy-but-local', vars.DOCKERHUB_USERNAME) || '' }}
           flavor: latest=false
           tags: |
             type=semver,pattern={{version}},value=${{ env.VERSION }}
@@ -101,7 +101,7 @@ jobs:
             type=semver,pattern={{major}},value=${{ env.VERSION }}
             type=raw,value=latest
           labels: |
-            org.opencontainers.image.title=eufy-local-bridge
+            org.opencontainers.image.title=eufy-but-local
             org.opencontainers.image.description=Eufy But Local bridge: local P2P access to a Eufy HomeBase 2 for Home Assistant
             org.opencontainers.image.version=${{ env.VERSION }}
       - uses: docker/build-push-action@v6
@@ -122,16 +122,26 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build eufy_local.zip
+      - name: Build eufy_but_local.zip
         run: |
-          manifest=custom_components/eufy_local/manifest.json
+          manifest=custom_components/eufy_but_local/manifest.json
           jq --arg v "$VERSION" '.version = $v' "$manifest" > manifest.tmp && mv manifest.tmp "$manifest"
-          (cd custom_components/eufy_local && zip -r -X "$GITHUB_WORKSPACE/eufy_local.zip" . -x '__pycache__/*' '*.pyc')
+          (cd custom_components/eufy_but_local && zip -r -X "$GITHUB_WORKSPACE/eufy_but_local.zip" . -x '__pycache__/*' '*.pyc')
       - name: Tag and GitHub release
         run: |
+          image="ghcr.io/${{ github.repository_owner }}/eufy-but-local"
+          cat > notes.md <<EOF
+          ## Install
+
+          - **Integration:** HACS → custom repository \`${{ github.server_url }}/${{ github.repository }}\` (type *Integration*) → install "Eufy But Local", or unpack \`eufy_but_local.zip\` into \`config/custom_components/eufy_but_local/\`.
+          - **Bridge:** \`docker pull $image:$VERSION\` (also \`latest\`), see the [README](${{ github.server_url }}/${{ github.repository }}#2-bridge-docker).
+
+          Tested only with HomeBase 2 (T8010), eufyCam 2C (T8113) and eufyCam 2C Pro (T8142).
+          EOF
           if gh release view "v$VERSION" >/dev/null 2>&1; then
-            gh release upload "v$VERSION" eufy_local.zip --clobber
+            gh release upload "v$VERSION" eufy_but_local.zip --clobber
           else
-            gh release create "v$VERSION" eufy_local.zip --target "$GITHUB_SHA" \
-              --title "v$VERSION" --generate-notes
+            # --notes is prepended to the generated changelog.
+            gh release create "v$VERSION" eufy_but_local.zip --target "$GITHUB_SHA" \
+              --title "v$VERSION" --notes-file notes.md --generate-notes
           fi
