@@ -104,7 +104,7 @@ jobs:
             org.opencontainers.image.title=eufy-but-local
             org.opencontainers.image.description=Eufy But Local bridge: local P2P access to a Eufy HomeBase 2 for Home Assistant
             org.opencontainers.image.version=${{ env.VERSION }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: bridge
           platforms: linux/amd64,linux/arm64
