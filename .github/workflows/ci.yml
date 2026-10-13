@@ -51,7 +51,8 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # Not yet submitted to home-assistant/brands.
+          # Not submitted to home-assistant/brands; the icon ships in the integration's
+          # brand/ folder instead (served locally by HA's brands view since 2026.x).
           ignore: brands
 
   # Pushes to main publish the image in bridge-image.yml; this only checks that PRs still build.
