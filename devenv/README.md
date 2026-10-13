@@ -9,7 +9,7 @@ docker compose up -d --build
 ```
 
 1. Open <http://127.0.0.1:8123> and create a user (onboarding).
-2. *Settings → Devices & services → Add integration → HALEC – Home Assistant Local Eufy Cams*:
+2. *Settings → Devices & services → Add integration → Eufy But Local*:
    host `bridge`, port `3080`, token `dev-token`.
 3. Log in with any email and password, verification code `123456`.
 
@@ -47,7 +47,7 @@ token) is git-ignored. On the first start macOS may ask whether the terminal may
 on the local network, and whether `node` may accept incoming connections: allow both, P2P
 needs them.
 
-Then in Home Assistant: *Add integration → HALEC*, host `host.docker.internal`, port `3081`,
+Then in Home Assistant: *Add integration → Eufy But Local*, host `host.docker.internal`, port `3081`,
 the token from `bridge/data/token`. Log in with the secondary account and enter the code Eufy
 sends. The real HomeBase appears as a second entry next to the simulated one.
 

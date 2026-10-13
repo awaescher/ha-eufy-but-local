@@ -5,7 +5,7 @@ Read this file, then `docs/STATUS.md` (current state and open work), then the AD
 
 ## What this project is
 
-**HALEC – Home Assistant Local Eufy Cams** (HALEC): a Home Assistant integration for **Eufy HomeBase 2** that delivers events, thumbnails and the
+**Eufy But Local**: a Home Assistant integration for **Eufy HomeBase 2** that delivers events, thumbnails and the
 guard mode **locally** (LAN-only P2P), instead of relying on Eufy's cloud push like all other
 existing integrations. It consists of two parts:
 
@@ -91,7 +91,9 @@ custom_components/eufy_local/
   diagnostics.py
 tests/                  pytest suites + FakeBridge (conftest.py)
 devenv/                 Docker: Home Assistant + bridge simulator; stream_probe.py (HA stream worker)
-.github/workflows/      ci.yml (tests, ruff, hassfest, HACS, image build), bridge-image.yml (GHCR on tags)
+.github/workflows/      ci.yml (tests, ruff, hassfest, HACS, image build; PRs and reused),
+                        release.yml (every push to main: CI, next patch version, image to
+                        GHCR + optional Docker Hub, tag, GitHub release with eufy_local.zip)
 docs/                   STATUS.md, architecture.md, offline-test-plan.md, adr/
 ```
 

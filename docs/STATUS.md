@@ -79,7 +79,10 @@ Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line cove
    (ADR 0006, `devenv/stream_probe.py`). If go2rtc fails, serve MPEG-TS or fMP4 instead.
 2. Push to GitHub and check the first CI run (`.github/workflows/ci.yml`). `hassfest` passes
    locally (Docker image); the HACS check can only run on GitHub (needs repo description and
-   topics). Then tag `v0.1.0` to publish the bridge image to GHCR (`bridge-image.yml`).
+   topics). Every push to main is a release (`release.yml`): CI, next patch version, image
+   (versioned + `latest`), tag and GitHub release with `eufy_local.zip`. After the first run,
+   make the GHCR package public. Docker Hub is optional (variable `DOCKERHUB_USERNAME`,
+   secret `DOCKERHUB_TOKEN`).
 3. Real-hardware validation of everything listed above, then update this file and the README.
 
 ## Known risks

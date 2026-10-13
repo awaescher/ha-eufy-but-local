@@ -1,10 +1,10 @@
 name: CI
 
+# Pushes to main run the CI through release.yml (CI, then version, image and release).
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -54,7 +54,9 @@ jobs:
           # Not yet submitted to home-assistant/brands.
           ignore: brands
 
+  # Pushes to main publish the image in bridge-image.yml; this only checks that PRs still build.
   bridge-image:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,4 +66,3 @@ jobs:
           context: bridge
           push: false
           cache-from: type=gha
-          cache-to: type=gha,mode=max

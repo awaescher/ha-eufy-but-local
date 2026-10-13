@@ -1,4 +1,4 @@
-"""Constants for the HALEC integration."""
+"""Constants for the Eufy But Local integration."""
 
 from __future__ import annotations
 
