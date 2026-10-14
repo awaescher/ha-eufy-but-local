@@ -86,6 +86,12 @@ Not yet verified on hardware:
   keyframe, as seen on hardware): go2rtc failed to set up the stream from MPEG-TS
   ("streams: unknown error"; over WebRTC this is the `Codec.Match` crash). The bridge now
   delivers nothing before the first keyframe; go2rtc then reads H.264 + AAC from TS and FLV.
+- Late audio (`SIM_AUDIO_DELAY_MS=1500`): the library reports no audio when the first audio
+  frame comes more than 650 ms after the first video frame. On hardware (2026-10-14) exactly
+  the starts logged "no audio" failed in the Home app ("Streaming process ended
+  unexpectedly"): with `support_audio` HomeKit's ffmpeg maps an audio track. The bridge now
+  announces audio unless the camera's microphone is off; ffmpeg with HomeKit's audio mapping
+  and HA's stream worker then read the FLV.
 - Last live frame as still image: the camera entity pipes `GET /api/frame/{sn}.h264` into the
   ffmpeg of the Home Assistant 2026.10.1 image (5 s limit, one attempt per frame, failures
   logged); a 2304x1296 keyframe decodes in 40 ms. The bridge keeps a frame only once it has
@@ -101,7 +107,7 @@ Not yet verified on hardware:
 
 | Suite | Result | Notes |
 |---|---|---|
-| `bridge`: `npm test` | 90 passing | ~97 % line coverage (node built-in coverage) |
+| `bridge`: `npm test` | 93 passing | ~97 % line coverage (node built-in coverage) |
 | `tests/test_config_flow.py` | 16 passing | |
 | `tests/test_init.py` | 12 passing | |
 | `tests/test_entities.py` | 20 passing | |
@@ -135,6 +141,9 @@ device `eufy-local-bridge` so existing sessions need no new 2FA code.
   had carried only audio until then; reproduced in the simulator and fixed in the bridge
   (audio waits for the first keyframe). Earlier crashes coincided with an unreachable bridge
   stream (restart, 409); whether those are gone too is open. Not reported upstream (ADR 0012).
+- Cameras with weak Wi-Fi (Hof -80 dBm, Wärmepumpe -81 dBm): a stream ended by itself after
+  9 s; the library stops a stream when no data came for 5 s. Its message is now logged
+  (`library: Stopping the station stream …`), check whether that was the cause.
 - The HomeBase streams one camera at a time. Several live views at once (e.g. dashboard cards
   in live mode plus the Home app) displace each other; a displaced camera is refused for 45 s
   (30 s let Home Assistant's retry of a camera nobody watched any more take the HomeBase back

@@ -224,7 +224,7 @@ describe("EufyConnector", () => {
 
   describe("library log", () => {
     const levels = [];
-    const lib = { LogLevel: { Debug: 1, Off: 6 }, setLoggingLevel: (category, level) => levels.push([category, level]) };
+    const lib = { LogLevel: { Debug: 1, Info: 2, Off: 6 }, setLoggingLevel: (category, level) => levels.push([category, level]) };
     const unhandled = (commandId) => [
       "[p2p] [P2PClientProtocol.handleDataControl] Handle DATA DATA - Not implemented message",
       { stationSN: "S1", commandId, channel: 0, data: "7b2261223a317d" },
@@ -246,7 +246,7 @@ describe("EufyConnector", () => {
       assert.equal(logs.filter((l) => l.includes("Processing sequence")).length, 0);
     });
 
-    it("keeps the P2P debug log off while a livestream runs", async () => {
+    it("keeps only the P2P info log on while a livestream runs", async () => {
       levels.length = 0;
       const { connector, state } = setup({ lib });
       await connector.start({ email: "a", password: "b" });
@@ -254,9 +254,16 @@ describe("EufyConnector", () => {
       state.upsertCamera("C1", { station: "S1" });
       await connector.live.addViewer("C1", { push() {}, end() {} });
       connector.live.started("C1");
-      assert.deepEqual(levels.at(-1), ["p2p", 6]);
+      assert.deepEqual(levels.at(-1), ["p2p", 2]);
       connector.live.ended("C1");
       assert.deepEqual(levels.at(-1), ["p2p", 1]);
+    });
+
+    it("passes the library's info messages on", async () => {
+      const { connector, clients, logs } = setup({ lib });
+      await connector.start({ email: "a", password: "b" });
+      clients[0].logger.info("[p2p] [P2PClientProtocol.waitForStreamData] Stopping the station stream for the device C1");
+      assert.ok(logs.includes("[local] library: Stopping the station stream for the device C1"));
     });
 
     it("logs the station's connection flags but never its keys", async () => {
@@ -267,6 +274,29 @@ describe("EufyConnector", () => {
       const line = logs.find((l) => l.includes("connection flags"));
       assert.match(line, /support_connect_mode=2/);
       assert.doesNotMatch(logs.join("\n"), /SECRET/);
+    });
+  });
+
+  describe("livestream audio", () => {
+    const start = async ({ audioCodec, microphone }) => {
+      const { connector, clients, state, logs } = setup();
+      await connector.start({ email: "a", password: "b" });
+      state.upsertCamera("C1", { station: "S1", properties: microphone === undefined ? {} : { microphone } });
+      await connector.live.addViewer("C1", { push() {}, end() {} });
+      const meta = { videoCodec: 0, videoFPS: 15, videoWidth: 1920, videoHeight: 1080, audioCodec };
+      clients[0].emit("station livestream start", station(), camera("C1"), meta, new EventEmitter(), new EventEmitter());
+      return { connector, logs };
+    };
+
+    it("announces audio the library reported as missing, because it arrives late", async () => {
+      const { connector, logs } = await start({ audioCodec: 0, microphone: true });
+      assert.equal(connector.live.hasAudio("C1"), true);
+      assert.ok(logs.some((l) => l.includes("audio expected, not reported yet")));
+    });
+
+    it("leaves audio out when the microphone is off", async () => {
+      const { connector } = await start({ audioCodec: 0, microphone: false });
+      assert.equal(connector.live.hasAudio("C1"), false);
     });
   });
 });

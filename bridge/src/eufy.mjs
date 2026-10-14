@@ -135,19 +135,21 @@ export class EufyConnector {
   /**
    * The library's P2P debug output is the only place where it reports messages it does not
    * handle, such as the local push (LOCAL_PUSH_COMMAND). It also logs every received packet
-   * with a stack trace, so it stays off while a livestream runs.
+   * with a stack trace, so while a livestream runs only its few info messages stay on (e.g.
+   * that it stopped a stream because no data came for 5 s).
    */
   #p2pDebug() {
     const { setLoggingLevel, LogLevel } = this.lib;
     if (typeof setLoggingLevel !== "function" || !LogLevel) return;
     const streaming = Object.values(this.state.cameras).some((cam) => cam.live);
-    setLoggingLevel("p2p", streaming ? LogLevel.Off : LogLevel.Debug);
+    setLoggingLevel("p2p", streaming ? LogLevel.Info : LogLevel.Debug);
   }
 
   #libraryLogger() {
     return {
       trace() {},
-      info() {},
+      // "[p2p] [Method] text" -> "text"
+      info: (message) => this.log("local", `library: ${String(message).replace(/^(\[[^\]]*\]\s*)+/, "")}`),
       debug: (message, details) => {
         if (String(message).includes("Not implemented")) this.#unhandled(details ?? {});
       },
@@ -483,11 +485,16 @@ export class EufyConnector {
     c.on("station livestream start", (_st, device, meta, video, audio) => {
       const sn = device.getSerial();
       const codec = meta.videoCodec === 0 ? "h264" : meta.videoCodec === 1 ? "h265" : "unknown";
-      // AudioCodec: 1 AAC, 2 AAC_LC, 3 AAC_ELD; 0 none, -1 unknown.
-      const hasAudio = [1, 2, 3].includes(meta.audioCodec) && Boolean(audio);
+      // AudioCodec: 1 AAC, 2 AAC_LC, 3 AAC_ELD; 0 none, -1 unknown. The library reports none
+      // when the first audio frame comes more than 650 ms after the first video frame (seen on
+      // cameras with weak Wi-Fi), yet audio follows. HomeKit's ffmpeg fails without an audio
+      // track, so one is announced unless the microphone is known to be off.
+      const declared = [1, 2, 3].includes(meta.audioCodec);
+      const hasAudio = Boolean(audio) && (declared || s.cameras[sn]?.properties?.microphone !== false);
       s.upsertCamera(sn, { codec });
       this.live.started(sn, { audio: hasAudio, fps: meta.videoFPS });
-      this.log("local", `livestream ${device.getName()} running (${codec}, ${meta.videoWidth}x${meta.videoHeight}, ${hasAudio ? "with" : "no"} audio)`);
+      const audioNote = hasAudio ? (declared ? "with audio" : "audio expected, not reported yet") : "no audio";
+      this.log("local", `livestream ${device.getName()} running (${codec}, ${meta.videoWidth}x${meta.videoHeight}, ${audioNote})`);
       video.on("data", (chunk) => this.live.feed(sn, chunk));
       video.on("end", () => this.live.ended(sn));
       if (hasAudio) audio.on("data", (chunk) => this.live.feedAudio(sn, chunk));
