@@ -76,8 +76,10 @@ export function splitAdts(buf) {
  *                                             like a real camera that joins mid-GOP
  * @param {number} [opts.audioDelayMs]         audio starts this late; above 650 ms the library
  *                                             reports no audio (weak Wi-Fi on real cameras)
+ * @param {boolean} [opts.rawAudio]            audio without ADTS headers, reported as AAC_ELD,
+ *                                             like older eufyCam 2C cameras
  */
-export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, fps = 15, videoDelayMs = 0, audioDelayMs = 0 } = {}) {
+export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, fps = 15, videoDelayMs = 0, audioDelayMs = 0, rawAudio = false } = {}) {
   const video = readFileSync(join(ASSETS, "stream.h264"));
   const frames = splitFrames(video);
   // AAC-LC, 16 kHz, mono like the real cameras: one frame = 1024 samples = 64 ms.
@@ -262,10 +264,13 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
       const entry = { readable, audio, timer: null, audioTimer: null };
       streams.set(sn, entry);
       setTimeout(() => {
-        const audioCodec = audioDelayMs > 650 ? 0 : 2;
+        const audioCodec = audioDelayMs > 650 ? 0 : rawAudio ? 3 : 2;
         this.emit("station livestream start", station, device, { videoCodec: 0, videoFPS: fps, videoWidth: 640, videoHeight: 360, audioCodec }, readable, audio);
         entry.audioDelay = setTimeout(() => {
-          entry.audioTimer = setInterval(() => audio.push(audioFrames[a++ % audioFrames.length]), 64);
+          entry.audioTimer = setInterval(() => {
+            const frame = audioFrames[a++ % audioFrames.length];
+            audio.push(rawAudio ? frame.subarray(7) : frame);
+          }, 64);
         }, audioDelayMs);
         entry.delay = setTimeout(() => {
           entry.timer = setInterval(() => readable.push(frames[i++ % frames.length]), 1000 / fps);

@@ -294,6 +294,21 @@ describe("EufyConnector", () => {
       assert.ok(logs.some((l) => l.includes("audio expected, not reported yet")));
     });
 
+    it("keeps a sample of audio it cannot decode", async () => {
+      const { connector, clients, state } = setup();
+      await connector.start({ email: "a", password: "b" });
+      state.upsertCamera("C1", { station: "S1", properties: { microphone: true } });
+      await connector.live.addViewer("C1", { push() {}, end() {} });
+      const audio = new EventEmitter();
+      const meta = { videoCodec: 0, videoFPS: 15, videoWidth: 1920, videoHeight: 1080, audioCodec: 3 };
+      clients[0].emit("station livestream start", station(), camera("C1"), meta, new EventEmitter(), audio);
+      audio.emit("data", Buffer.from([0x71, 0x7a, 0x01]));
+      audio.emit("data", Buffer.from([0xff, 0xf1, 0x60, 0x40, 0x18, 0x02, 0x40])); // ADTS: not kept
+      audio.emit("data", Buffer.from([0x7a, 0x79]));
+      const sample = readFileSync(join(connector.config.dataDir, "audio-samples", "C1.bin"));
+      assert.deepEqual(sample, Buffer.from([0, 3, 0x71, 0x7a, 0x01, 0, 2, 0x7a, 0x79]));
+    });
+
     it("leaves audio out when the microphone is off", async () => {
       const { connector } = await start({ audioCodec: 0, microphone: false });
       assert.equal(connector.live.hasAudio("C1"), false);

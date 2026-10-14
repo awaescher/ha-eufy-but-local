@@ -52,6 +52,7 @@ npm test                       # node:test, no extra dependencies
 npm run simulator              # bridge with a simulated HomeBase (2FA code 123456)
                                # SIM_VIDEO_DELAY_MS=5000: audio before the first keyframe
                                # SIM_AUDIO_DELAY_MS=1500: audio late, library reports none
+                               # SIM_RAW_AUDIO=1: audio without ADTS (older eufyCam 2C)
 node --test --experimental-test-coverage test/*.test.mjs
 
 # Integration

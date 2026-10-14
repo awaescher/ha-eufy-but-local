@@ -8,7 +8,7 @@ import { readConfig } from "../src/config.mjs";
 import { CredentialStore } from "../src/credentials.mjs";
 import { findSpsOffset } from "../src/h264.mjs";
 import { ImageStore } from "../src/images.mjs";
-import { LiveStreams, adtsDurationMs, boundBacklog, describeAudio } from "../src/live.mjs";
+import { LiveStreams, SILENT_AAC, adtsDurationMs, boundBacklog, describeAudio } from "../src/live.mjs";
 import { splitFrames } from "../src/simulator.mjs";
 import { BridgeState } from "../src/state.mjs";
 
@@ -286,6 +286,23 @@ describe("LiveStreams", () => {
     t = 5000;
     live.feedAudio("C1", ADTS);
     assert.equal(at("audio").at(-1), 5000);
+  });
+
+  it("replaces audio it cannot pass on with silence at the real-time rate", async () => {
+    let t = 1000;
+    const logs = [];
+    const { live } = make({ now: () => t, log: (m) => logs.push(m), nameOf: () => "Häusle" });
+    const v = new Sink();
+    await live.addViewer("C1", v);
+    live.started("C1", { audio: true });
+    live.feed("C1", Buffer.concat([SPS4, IDR]));
+    const RAW = Buffer.from([0x71, 0x7a, 0x90, 0xcc, 0x23, 0x09, 0x15, 0x51]);
+    // The camera sends a frame every 30 ms; silence comes in 64 ms frames.
+    for (let i = 0; i < 10; i++, t += 30) live.feedAudio("C1", RAW);
+    const audio = v.units.filter((u) => u.kind === "audio");
+    assert.ok(audio.every((u) => u.data.equals(SILENT_AAC)));
+    assert.deepEqual(audio.map((u) => u.at), [1000, 1064, 1128, 1192, 1256]);
+    assert.match(logs.at(-1), /^livestream Häusle: audio not ADTS \(8 bytes, starts 717a90cc23091551\), sending silence instead$/);
   });
 
   it("describes the audio format for the log", () => {

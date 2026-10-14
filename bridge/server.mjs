@@ -25,6 +25,7 @@ if (config.simulator) {
     eventIntervalSeconds: Number(process.env.SIM_EVENT_INTERVAL ?? 60),
     videoDelayMs: Number(process.env.SIM_VIDEO_DELAY_MS ?? 0),
     audioDelayMs: Number(process.env.SIM_AUDIO_DELAY_MS ?? 0),
+    rawAudio: process.env.SIM_RAW_AUDIO === "1",
   }));
   log("bridge", "SIMULATOR MODE – no real HomeBase involved");
 } else {

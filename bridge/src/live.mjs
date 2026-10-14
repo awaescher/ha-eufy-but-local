@@ -31,10 +31,17 @@ export function adtsDurationMs(chunk) {
   return (blocks * 1024 * 1000) / rate;
 }
 const AAC_PROFILES = ["Main", "LC", "SSR", "LTP"];
+// 64 ms of AAC-LC silence, 16 kHz mono, as ADTS (made with ffmpeg's aac encoder).
+export const SILENT_AAC = Buffer.from("fff16040017ffc01182007", "hex");
+const SILENT_AAC_MS = 64;
+
+export function isAdts(chunk) {
+  return chunk.length >= 7 && chunk[0] === 0xff && (chunk[1] & 0xf6) === 0xf0;
+}
 
 /** What an audio frame is, for the log: e.g. "AAC-LC 16000 Hz, 1 channel(s) (ADTS)". */
 export function describeAudio(chunk) {
-  if (chunk.length < 7 || chunk[0] !== 0xff || (chunk[1] & 0xf6) !== 0xf0) {
+  if (!isAdts(chunk)) {
     return `not ADTS (${chunk.length} bytes, starts ${chunk.subarray(0, 8).toString("hex")})`;
   }
   const profile = AAC_PROFILES[(chunk[2] >> 6) & 0x03];
@@ -288,10 +295,22 @@ export class LiveStreams {
     // audio already flows (seen for seconds). Readers that probe the stream then give up on
     // the video track (go2rtc fails, Home Assistant's stream worker cannot mux), so audio waits.
     if (!s || s.firstKeyframeAt == null) return;
+    const adts = isAdts(chunk);
     if (!s.audioLogged) {
       s.audioLogged = true;
-      this.log(`livestream ${this.nameOf(sn)}: audio ${describeAudio(chunk)}`);
+      this.log(`livestream ${this.nameOf(sn)}: audio ${describeAudio(chunk)}${adts ? "" : ", sending silence instead"}`);
     }
+    if (adts) {
+      this.#pushAudio(sn, s, chunk);
+      return;
+    }
+    // Some cameras (older eufyCam 2C) send audio in a format the bridge cannot pass on yet.
+    // HomeKit's ffmpeg needs an audio track, so silence keeps pace with the camera's audio.
+    const now = this.now();
+    while (s.lastAudioAt === null || s.lastAudioAt + SILENT_AAC_MS <= now) this.#pushAudio(sn, s, SILENT_AAC);
+  }
+
+  #pushAudio(sn, s, chunk) {
     const now = this.now();
     const frameMs = adtsDurationMs(chunk) ?? 64;
     let at = s.lastAudioAt === null ? now : s.lastAudioAt + frameMs;

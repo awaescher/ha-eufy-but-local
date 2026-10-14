@@ -5,12 +5,12 @@
 // livestream, guard mode. Cloud: login + device list on start, optional
 // person/motion push notifications.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 import { decodeImageV2, isV2Image } from "./image-v2.mjs";
 import { ImageStore } from "./images.mjs";
-import { LiveStreams } from "./live.mjs";
+import { LiveStreams, isAdts } from "./live.mjs";
 import { CAMERA_PROPERTIES, HUMANS_ONLY, STATION_PROPERTIES, pick } from "./properties.mjs";
 
 // An unsolicited P2P command from the HomeBase that may carry local push notifications;
@@ -18,6 +18,9 @@ import { CAMERA_PROPERTIES, HUMANS_ONLY, STATION_PROPERTIES, pick } from "./prop
 export const LOCAL_PUSH_COMMAND = 1312;
 // Other unhandled P2P messages are logged this often per command, all of them with BRIDGE_DEBUG.
 const UNHANDLED_LOG_LIMIT = 3;
+// Audio frames the bridge cannot decode yet are kept for analysis (a few seconds per camera).
+export const AUDIO_SAMPLE_FRAMES = 300;
+const AUDIO_CODECS = { 1: "AAC", 2: "AAC_LC", 3: "AAC_ELD" };
 
 export class EufyConnector {
   /**
@@ -64,6 +67,30 @@ export class EufyConnector {
       maxMs: config.liveMaxSeconds * 1000,
     });
     this.unhandled = new Map(); // P2P command id -> times seen
+  }
+
+  /**
+   * Keeps the first frames of audio the bridge cannot decode, so the format can be worked
+   * out offline; each frame as a 2-byte big-endian length plus its bytes. Never leaves the host.
+   */
+  #keepAudioSample(sn, chunk) {
+    this.audioSamples ??= new Map();
+    const kept = this.audioSamples.get(sn) ?? 0;
+    if (kept >= AUDIO_SAMPLE_FRAMES) return;
+    this.audioSamples.set(sn, kept + 1);
+    const file = join(this.config.dataDir, "audio-samples", `${sn.replace(/[^\w-]/g, "_")}.bin`);
+    try {
+      if (kept === 0) {
+        mkdirSync(join(this.config.dataDir, "audio-samples"), { recursive: true });
+        writeFileSync(file, Buffer.alloc(0));
+        this.log("local", `keeping ${AUDIO_SAMPLE_FRAMES} audio frames of ${this.state.cameras[sn]?.name ?? sn} in ${file}`);
+      }
+      const len = Buffer.alloc(2);
+      len.writeUInt16BE(chunk.length);
+      appendFileSync(file, Buffer.concat([len, chunk]));
+    } catch (err) {
+      if (kept === 0) this.log("local", `could not keep an audio sample (${err.message})`);
+    }
   }
 
   /** Keeps a thumbnail the v2 decoder could not handle, for diagnosis; it never leaves the host. */
@@ -494,11 +521,18 @@ export class EufyConnector {
       const hasAudio = Boolean(audio) && (declared || s.cameras[sn]?.properties?.microphone !== false);
       s.upsertCamera(sn, { codec });
       const session = this.live.started(sn, { audio: hasAudio, fps: meta.videoFPS });
-      const audioNote = hasAudio ? (declared ? "with audio" : "audio expected, not reported yet") : "no audio";
+      const audioNote = hasAudio
+        ? declared ? `with audio, ${AUDIO_CODECS[meta.audioCodec]}` : "audio expected, not reported yet"
+        : "no audio";
       this.log("local", `livestream ${device.getName()} running (${codec}, ${meta.videoWidth}x${meta.videoHeight}, ${audioNote})`);
       video.on("data", (chunk) => this.live.feed(sn, chunk));
       video.on("end", () => this.live.interrupted(sn, session));
-      if (hasAudio) audio.on("data", (chunk) => this.live.feedAudio(sn, chunk));
+      if (hasAudio) {
+        audio.on("data", (chunk) => {
+          this.live.feedAudio(sn, chunk);
+          if (!isAdts(chunk)) this.#keepAudioSample(sn, chunk);
+        });
+      }
     });
     c.on("station livestream stop", (_st, device) => {
       this.live.interrupted(device.getSerial());

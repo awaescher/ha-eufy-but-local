@@ -107,7 +107,7 @@ Not yet verified on hardware:
 
 | Suite | Result | Notes |
 |---|---|---|
-| `bridge`: `npm test` | 98 passing | ~97 % line coverage (node built-in coverage) |
+| `bridge`: `npm test` | 100 passing | ~97 % line coverage (node built-in coverage) |
 | `tests/test_config_flow.py` | 16 passing | |
 | `tests/test_init.py` | 12 passing | |
 | `tests/test_entities.py` | 20 passing | |
@@ -145,9 +145,13 @@ device `eufy-local-bridge` so existing sessions need no new 2FA code.
   (2026-10-14) that the library stopped Hof's stream after 11 s because no data came for 5 s.
   The bridge now restarts a stream the HomeBase stopped on its own while someone watches (at
   most twice per session, not at the maximum duration); not yet seen on hardware.
-- Häusle in the Home app: the bridge delivered for 115 s, but HomeKit's ffmpeg showed no
-  picture and did not stop when asked ("Timeout while waiting of FFmpeg" every 30 s). Cause
-  open; the bridge now logs the audio format of each stream (`livestream …: audio …`).
+- Audio formats (2026-10-15): T8113-V and T8142 send AAC-LC 16 kHz mono as ADTS. The three
+  T8113 without "-V" (Häusle, Kellereingang, Terrasse) send something else (130–144 byte
+  frames, no ADTS header; the library's codec name is logged from 0.1.8 on). The stream
+  announced audio but carried none, so HomeKit's ffmpeg never showed a picture for them
+  (Häusle: no picture for 115 s, "Timeout while waiting of FFmpeg"). The bridge now sends
+  silence in their place and keeps 300 frames in `DATA_DIR/audio-samples/` to work out the
+  format; their live view has no sound until then.
 - The HomeBase streams one camera at a time. Several live views at once (e.g. dashboard cards
   in live mode plus the Home app) displace each other; a displaced camera is refused for 45 s
   (30 s let Home Assistant's retry of a camera nobody watched any more take the HomeBase back

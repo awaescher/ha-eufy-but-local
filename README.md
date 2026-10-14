@@ -260,6 +260,8 @@ and open its port in the host firewall.
   Assistant: it drains the battery, stops 10 s after the last viewer and after at most
   120 s (`LIVE_IDLE_SEC`, `LIVE_MAX_SEC`). The HomeBase streams one camera at a time;
   opening a second camera stops the first.
+- **Sound:** the older eufyCam 2C (T8113 without "-V") send audio in a format the bridge
+  cannot pass on yet; their live view carries silence instead, so the picture still works.
 - **No recording, no storage:** Home Assistant's HomeKit Bridge does not support HomeKit
   Secure Video, so HomeKit records nothing and stores nothing in iCloud, and neither does
   Home Assistant.
