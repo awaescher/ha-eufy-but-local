@@ -34,6 +34,7 @@ const AAC_PROFILES = ["Main", "LC", "SSR", "LTP"];
 // 64 ms of AAC-LC silence, 16 kHz mono, as ADTS (made with ffmpeg's aac encoder).
 export const SILENT_AAC = Buffer.from("fff16040017ffc01182007", "hex");
 const SILENT_AAC_MS = 64;
+const RAW_AUDIO_MEASURE_MS = 10_000;
 
 export function isAdts(chunk) {
   return chunk.length >= 7 && chunk[0] === 0xff && (chunk[1] & 0xf6) === 0xf0;
@@ -294,6 +295,7 @@ export class LiveStreams {
     s.firstKeyframeAt = null;
     s.audioLogged = false;
     s.silenced = false;
+    s.rawAudio = null;
     s.maxLeadMs = 0;
     s.skips = 0;
     s.frameNotifiedAt = null;
@@ -341,6 +343,15 @@ export class LiveStreams {
     // HomeKit's ffmpeg needs an audio track, so silence keeps pace with the camera's audio.
     s.silenced = true;
     const now = this.now();
+    // The frame rate tells the sample rate (AAC-ELD frames hold 480 or 512 samples), which the
+    // library does not report.
+    s.rawAudio ??= { since: now, frames: 0, logged: false };
+    s.rawAudio.frames += 1;
+    if (!s.rawAudio.logged && now - s.rawAudio.since >= RAW_AUDIO_MEASURE_MS) {
+      s.rawAudio.logged = true;
+      const fps = (s.rawAudio.frames - 1) / ((now - s.rawAudio.since) / 1000);
+      this.log(`livestream ${this.nameOf(sn)}: unsupported audio arrives at ${fps.toFixed(1)} frames/s`);
+    }
     while (s.lastAudioAt === null || s.lastAudioAt + SILENT_AAC_MS <= now) this.#pushAudio(sn, s, SILENT_AAC);
   }
 

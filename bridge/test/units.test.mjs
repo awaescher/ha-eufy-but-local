@@ -299,10 +299,13 @@ describe("LiveStreams", () => {
     const RAW = Buffer.from([0x71, 0x7a, 0x90, 0xcc, 0x23, 0x09, 0x15, 0x51]);
     // The camera sends a frame every 30 ms; silence comes in 64 ms frames.
     for (let i = 0; i < 10; i++, t += 30) live.feedAudio("C1", RAW);
-    const audio = v.units.filter((u) => u.kind === "audio");
+    const audio = v.units.filter((u) => u.kind === "audio").slice(0, 5);
     assert.ok(audio.every((u) => u.data.equals(SILENT_AAC)));
     assert.deepEqual(audio.map((u) => u.at), [1000, 1064, 1128, 1192, 1256]);
     assert.match(logs.at(-1), /^livestream Häusle: audio not ADTS \(8 bytes, starts 717a90cc23091551\), sending silence instead$/);
+    // After 10 s the arrival rate is logged: it tells the sample rate.
+    for (let i = 0; i < 400; i++, t += 25) live.feedAudio("C1", RAW);
+    assert.ok(logs.some((l) => /^livestream Häusle: unsupported audio arrives at (39\.\d|40\.0) frames\/s$/.test(l)), logs.at(-1));
   });
 
   it("describes the audio format for the log", () => {
