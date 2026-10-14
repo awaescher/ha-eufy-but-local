@@ -4,7 +4,7 @@ pytest-timeout
 ruff
 
 # Requirements of HA components the integration uses (from their manifest.json, HA 2026.10.1)
-PyTurboJPEG==1.8.3
+PyTurboJPEG==2.5.0
 av==19.0.0
 numpy==2.3.2
 ha-ffmpeg==3.2.2
