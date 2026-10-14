@@ -82,6 +82,10 @@ Not yet verified on hardware:
 - Guard mode: arming away from HA sets `AWAY` on the bridge.
 - Bridge loses its login: HA shows the integration as needing reconfiguration; logging in again
   from the UI restores all entities.
+- A camera that starts mid-GOP (`SIM_VIDEO_DELAY_MS=5000`: audio flows 5 s before the first
+  keyframe, as seen on hardware): go2rtc failed to set up the stream from MPEG-TS
+  ("streams: unknown error"; over WebRTC this is the `Codec.Match` crash). The bridge now
+  delivers nothing before the first keyframe; go2rtc then reads H.264 + AAC from TS and FLV.
 - Last live frame as still image: `GET /api/frame/{sn}.h264` decodes to a JPEG with the ffmpeg
   of the Home Assistant 2026.10.1 image (same arguments as HA's `ffmpeg.async_get_image`).
 - Time until a consumer has the first video frame (simulator, no camera wake-up), MPEG-TS /
@@ -93,7 +97,7 @@ Not yet verified on hardware:
 
 | Suite | Result | Notes |
 |---|---|---|
-| `bridge`: `npm test` | 88 passing | ~97 % line coverage (node built-in coverage) |
+| `bridge`: `npm test` | 89 passing | ~97 % line coverage (node built-in coverage) |
 | `tests/test_config_flow.py` | 16 passing | |
 | `tests/test_init.py` | 12 passing | |
 | `tests/test_entities.py` | 19 passing | |
@@ -122,10 +126,13 @@ device `eufy-local-bridge` so existing sessions need no new 2FA code.
 
 ## Known risks
 
-- go2rtc 1.9.14 (bundled with Home Assistant) crashed several times with a nil pointer in
-  `Codec.Match` when a WebRTC request arrived while the bridge stream was unreachable (bridge
-  restart, or a camera refused with 409). Home Assistant restarts go2rtc automatically. Not
-  reproducible on demand; not reported upstream (ADR 0012).
+- go2rtc 1.9.14 (bundled with Home Assistant) crashed with a nil pointer in `Codec.Match`.
+  On hardware (2026-10-14) it happened right after a camera's first keyframe, when the stream
+  had carried only audio until then; reproduced in the simulator and fixed in the bridge
+  (audio waits for the first keyframe). Earlier crashes coincided with an unreachable bridge
+  stream (restart, 409); whether those are gone too is open. Not reported upstream (ADR 0012).
+- The HomeBase streams one camera at a time. Several live views at once (e.g. dashboard cards
+  in live mode plus the Home app) displace each other; a displaced camera is refused for 30 s.
 
 - `eufy-security-client` (bropat) is archived (2026-09-12) and deprecated on npm; the author
   points to mega-yfue/eufy-sdk. Eufy is shutting down the legacy APIs it uses, so login may
