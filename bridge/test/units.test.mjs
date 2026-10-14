@@ -8,7 +8,7 @@ import { readConfig } from "../src/config.mjs";
 import { CredentialStore } from "../src/credentials.mjs";
 import { findSpsOffset } from "../src/h264.mjs";
 import { ImageStore } from "../src/images.mjs";
-import { LiveStreams, adtsDurationMs, boundBacklog } from "../src/live.mjs";
+import { LiveStreams, adtsDurationMs, boundBacklog, describeAudio } from "../src/live.mjs";
 import { splitFrames } from "../src/simulator.mjs";
 import { BridgeState } from "../src/state.mjs";
 
@@ -288,6 +288,11 @@ describe("LiveStreams", () => {
     assert.equal(at("audio").at(-1), 5000);
   });
 
+  it("describes the audio format for the log", () => {
+    assert.equal(describeAudio(Buffer.from([0xff, 0xf1, 0x60, 0x40, 0x18, 0x02, 0x40])), "AAC-LC 16000 Hz, 1 channel(s) (ADTS)");
+    assert.equal(describeAudio(Buffer.from([1, 2, 3, 4, 5, 6, 7, 8, 9])), "not ADTS (9 bytes, starts 0102030405060708)");
+  });
+
   it("reads the duration of an ADTS frame", () => {
     assert.equal(adtsDurationMs(Buffer.from([0xff, 0xf1, 0x60, 0x40, 0x18, 0x02, 0x40])), 64);
     assert.equal(adtsDurationMs(Buffer.from([1, 2, 3, 4, 5, 6, 7])), null);
@@ -316,6 +321,71 @@ describe("LiveStreams", () => {
     const late = new Sink();
     await live.addViewer("C1", late);
     assert.equal(late.units.length, 2, "and the GOP cache holds both");
+  });
+
+  describe("a stream the HomeBase stopped on its own", () => {
+    const running = async (overrides = {}) => {
+      let t = 0;
+      const logs = [];
+      const { live, calls } = make({ now: () => t, maxMs: 120_000, log: (m) => logs.push(m), ...overrides });
+      const v = new Sink();
+      await live.addViewer("C1", v);
+      const session = live.started("C1");
+      return { live, calls, v, session, logs, advance: (ms) => { t += ms; } };
+    };
+
+    it("is restarted for its viewers, who stay connected", async () => {
+      const { live, calls, v, session, logs } = await running();
+      live.interrupted("C1", session);
+      assert.deepEqual(calls.start, ["C1", "C1"]);
+      assert.equal(v.ended, false);
+      assert.match(logs.at(-1), /restarting for its viewers \(1\/2\)/);
+      live.interrupted("C1", session); // the old session's late "end" event
+      assert.deepEqual(calls.start, ["C1", "C1"]);
+      live.started("C1");
+      live.feed("C1", Buffer.concat([SPS4, IDR]));
+      assert.equal(v.units.length, 1, "viewers get the new stream");
+      assert.deepEqual(calls.change, [["C1", true], ["C1", true]]);
+    });
+
+    it("gives up after two restarts", async () => {
+      const { live, calls, v } = await running();
+      for (let i = 0; i < 3; i++) live.interrupted("C1", live.started("C1"));
+      assert.equal(calls.start.length, 3);
+      assert.equal(v.ended, true);
+    });
+
+    it("is not restarted at the maximum duration, after an idle stop, or without viewers", async () => {
+      const max = await running();
+      max.advance(119_000);
+      max.live.interrupted("C1", max.session);
+      assert.equal(max.v.ended, true);
+
+      const idle = await running({ idleMs: 0 });
+      idle.live.removeViewer("C1", idle.v);
+      await new Promise((r) => setTimeout(r, 5));
+      idle.live.interrupted("C1", idle.session);
+      assert.deepEqual(idle.calls.start, ["C1"]);
+      assert.deepEqual(idle.calls.change.at(-1), ["C1", false]);
+    });
+
+    it("ends the viewers when the restart fails", async () => {
+      let fail = false;
+      const starts = [];
+      const { live, calls, v, session } = await running({
+        start: async (sn) => {
+          starts.push(sn);
+          if (fail) throw new Error("camera asleep");
+        },
+      });
+      assert.equal(v.ended, false);
+      fail = true;
+      live.interrupted("C1", session);
+      assert.deepEqual(starts, ["C1", "C1"]);
+      await new Promise((r) => setImmediate(r));
+      assert.equal(v.ended, true);
+      assert.deepEqual(calls.change.at(-1), ["C1", false]);
+    });
   });
 
   it("delivers nothing before the first keyframe, so every viewer starts with one", async () => {

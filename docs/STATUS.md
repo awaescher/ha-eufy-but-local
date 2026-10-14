@@ -107,7 +107,7 @@ Not yet verified on hardware:
 
 | Suite | Result | Notes |
 |---|---|---|
-| `bridge`: `npm test` | 93 passing | ~97 % line coverage (node built-in coverage) |
+| `bridge`: `npm test` | 98 passing | ~97 % line coverage (node built-in coverage) |
 | `tests/test_config_flow.py` | 16 passing | |
 | `tests/test_init.py` | 12 passing | |
 | `tests/test_entities.py` | 20 passing | |
@@ -141,9 +141,13 @@ device `eufy-local-bridge` so existing sessions need no new 2FA code.
   had carried only audio until then; reproduced in the simulator and fixed in the bridge
   (audio waits for the first keyframe). Earlier crashes coincided with an unreachable bridge
   stream (restart, 409); whether those are gone too is open. Not reported upstream (ADR 0012).
-- Cameras with weak Wi-Fi (Hof -80 dBm, Wärmepumpe -81 dBm): a stream ended by itself after
-  9 s; the library stops a stream when no data came for 5 s. Its message is now logged
-  (`library: Stopping the station stream …`), check whether that was the cause.
+- Cameras with weak Wi-Fi (Hof -80 dBm, Wärmepumpe -81 dBm): confirmed on hardware
+  (2026-10-14) that the library stopped Hof's stream after 11 s because no data came for 5 s.
+  The bridge now restarts a stream the HomeBase stopped on its own while someone watches (at
+  most twice per session, not at the maximum duration); not yet seen on hardware.
+- Häusle in the Home app: the bridge delivered for 115 s, but HomeKit's ffmpeg showed no
+  picture and did not stop when asked ("Timeout while waiting of FFmpeg" every 30 s). Cause
+  open; the bridge now logs the audio format of each stream (`livestream …: audio …`).
 - The HomeBase streams one camera at a time. Several live views at once (e.g. dashboard cards
   in live mode plus the Home app) displace each other; a displaced camera is refused for 45 s
   (30 s let Home Assistant's retry of a camera nobody watched any more take the HomeBase back

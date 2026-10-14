@@ -30,6 +30,19 @@ export function adtsDurationMs(chunk) {
   const blocks = (chunk[6] & 0x03) + 1;
   return (blocks * 1024 * 1000) / rate;
 }
+const AAC_PROFILES = ["Main", "LC", "SSR", "LTP"];
+
+/** What an audio frame is, for the log: e.g. "AAC-LC 16000 Hz, 1 channel(s) (ADTS)". */
+export function describeAudio(chunk) {
+  if (chunk.length < 7 || chunk[0] !== 0xff || (chunk[1] & 0xf6) !== 0xf0) {
+    return `not ADTS (${chunk.length} bytes, starts ${chunk.subarray(0, 8).toString("hex")})`;
+  }
+  const profile = AAC_PROFILES[(chunk[2] >> 6) & 0x03];
+  const rate = ADTS_SAMPLE_RATES[(chunk[2] >> 2) & 0x0f] ?? "?";
+  const channels = ((chunk[2] & 0x01) << 2) | (chunk[3] >> 6);
+  return `AAC-${profile} ${rate} Hz, ${channels} channel(s) (ADTS)`;
+}
+
 // Home Assistant's stream worker retries 10, 30 and 60 s after its stream ended
 // (STREAM_RESTART_INCREMENT) and stops an unwatched stream after 30 s (OUTPUT_IDLE_TIMEOUT).
 // With exactly 30 s, its second retry took the HomeBase back from the camera opened in the
@@ -39,6 +52,9 @@ const SWITCH_COOLDOWN_MS = 45_000;
 export const MAX_VIEWER_BACKLOG_BYTES = 512 * 1024;
 // How often a running stream reports a newer still frame; Apple Home asks about every 10 s.
 const FRAME_NOTIFY_MS = 10_000;
+// The library stops a stream after 5 s without data (weak Wi-Fi, seen on hardware). While
+// someone watches, the bridge starts it again this often per session instead of ending them.
+const MAX_RESTARTS = 2;
 
 /**
  * Returns `accept(unit)`, which drops a slow viewer's units while its unsent data (`pending()`)
@@ -71,6 +87,7 @@ export class LiveStreams {
    * @param {number} [opts.switchCooldownMs]             how long a displaced camera is refused
    * @param {(sn: string, at: string) => void} [opts.onFrame] a newer still frame is available
    * @param {(sn: string) => string} [opts.nameOf]       camera name for log lines
+   * @param {number} [opts.maxMs]                        the library's maximum stream duration
    * @param {() => number} [opts.now]
    */
   constructor({
@@ -83,6 +100,7 @@ export class LiveStreams {
     switchCooldownMs = SWITCH_COOLDOWN_MS,
     onFrame = () => {},
     nameOf = (sn) => sn,
+    maxMs = Infinity,
     now = () => Date.now(),
   }) {
     this.startFn = start;
@@ -94,6 +112,7 @@ export class LiveStreams {
     this.switchCooldownMs = switchCooldownMs;
     this.onFrame = onFrame;
     this.nameOf = nameOf;
+    this.maxMs = maxMs;
     this.now = now;
     this.streams = new Map();
     this.displacedAt = new Map(); // sn -> time another camera of its station took over
@@ -144,15 +163,43 @@ export class LiveStreams {
     }
     if (s.starting) return;
     s.starting = true;
+    s.restarts = 0;
+    s.stopRequested = false;
     s.requestedAt = this.now();
     this.displacedAt.delete(sn);
     await this.#displaceOthers(sn);
+    await this.#start(sn);
+  }
+
+  async #start(sn) {
     try {
       await this.startFn(sn);
     } catch (err) {
       this.log(`livestream start failed for ${sn}: ${err.message}`);
       this.ended(sn);
     }
+  }
+
+  /**
+   * Called when the stream stopped without the bridge asking for it (`session` from
+   * `started()`, to ignore late events of an earlier session). Restarts it while someone
+   * watches, unless it reached the maximum duration; otherwise ends it.
+   */
+  interrupted(sn, session = this.streams.get(sn)?.session) {
+    const s = this.streams.get(sn);
+    if (!s || !s.running || session !== s.session) return;
+    const ranMs = this.now() - s.startedAt;
+    if (s.stopRequested || s.viewers.size === 0 || ranMs >= this.maxMs - 2000 || s.restarts >= MAX_RESTARTS) {
+      this.ended(sn);
+      return;
+    }
+    s.restarts += 1;
+    this.log(`livestream ${this.nameOf(sn)} stopped by the HomeBase after ${Math.round(ranMs / 1000)} s, restarting for its viewers (${s.restarts}/${MAX_RESTARTS})`);
+    s.running = false;
+    s.starting = true;
+    s.restarting = true;
+    s.requestedAt = this.now();
+    this.#start(sn);
   }
 
   async #displaceOthers(sn) {
@@ -185,14 +232,18 @@ export class LiveStreams {
     clearTimeout(s.idleTimer);
     s.idleTimer = setTimeout(() => {
       s.idleTimer = null;
-      if (s.viewers.size === 0) this.stopFn(sn).catch((err) => this.log(`livestream stop failed: ${err.message}`));
+      if (s.viewers.size > 0) return;
+      s.stopRequested = true;
+      this.stopFn(sn).catch((err) => this.log(`livestream stop failed: ${err.message}`));
     }, this.idleMs);
     s.idleTimer.unref?.();
   }
 
-  /** Called when the camera actually started streaming. */
+  /** Called when the camera actually started streaming; returns the session for `interrupted`. */
   started(sn, { audio = false, fps = 15 } = {}) {
     const s = this.#get(sn);
+    s.session = (s.session ?? 0) + 1;
+    s.restarting = false;
     s.audio = audio;
     s.fps = fps > 0 ? fps : 15;
     // P2P delivers frames in bursts; timestamps must still advance for every frame.
@@ -202,6 +253,7 @@ export class LiveStreams {
     s.startedAt = this.now();
     s.firstVideoAt = null;
     s.firstKeyframeAt = null;
+    s.audioLogged = false;
     s.maxLeadMs = 0;
     s.skips = 0;
     s.frameNotifiedAt = null;
@@ -210,6 +262,7 @@ export class LiveStreams {
     s.gop = [];
     s.gopBytes = 0;
     this.onChange(sn, true);
+    return s.session;
   }
 
   /** Feeds one frame of raw H.264 (Annex-B) to all viewers and the GOP cache. */
@@ -235,6 +288,10 @@ export class LiveStreams {
     // audio already flows (seen for seconds). Readers that probe the stream then give up on
     // the video track (go2rtc fails, Home Assistant's stream worker cannot mux), so audio waits.
     if (!s || s.firstKeyframeAt == null) return;
+    if (!s.audioLogged) {
+      s.audioLogged = true;
+      this.log(`livestream ${this.nameOf(sn)}: audio ${describeAudio(chunk)}`);
+    }
     const now = this.now();
     const frameMs = adtsDurationMs(chunk) ?? 64;
     let at = s.lastAudioAt === null ? now : s.lastAudioAt + frameMs;
@@ -292,8 +349,9 @@ export class LiveStreams {
   ended(sn) {
     const s = this.streams.get(sn);
     if (!s || (!s.running && !s.starting && s.viewers.size === 0)) return;
-    const wasRunning = s.running;
-    if (wasRunning) {
+    const wasRunning = s.running || s.restarting;
+    s.restarting = false;
+    if (s.running) {
       const secs = Math.round((this.now() - s.startedAt) / 1000);
       this.log(`livestream ${this.nameOf(sn)} ended after ${secs} s (timestamps at most ${Math.round(s.maxLeadMs)} ms ahead, slow viewers skipped ${s.skips} times)`);
       // Report the final still frame if the throttle held it back.

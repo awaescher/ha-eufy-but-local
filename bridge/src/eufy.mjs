@@ -61,6 +61,7 @@ export class EufyConnector {
       log: (m) => this.log("local", m),
       stationOf: (sn) => this.state.cameras[sn]?.station ?? sn,
       nameOf: (sn) => this.state.cameras[sn]?.name ?? sn,
+      maxMs: config.liveMaxSeconds * 1000,
     });
     this.unhandled = new Map(); // P2P command id -> times seen
   }
@@ -492,15 +493,15 @@ export class EufyConnector {
       const declared = [1, 2, 3].includes(meta.audioCodec);
       const hasAudio = Boolean(audio) && (declared || s.cameras[sn]?.properties?.microphone !== false);
       s.upsertCamera(sn, { codec });
-      this.live.started(sn, { audio: hasAudio, fps: meta.videoFPS });
+      const session = this.live.started(sn, { audio: hasAudio, fps: meta.videoFPS });
       const audioNote = hasAudio ? (declared ? "with audio" : "audio expected, not reported yet") : "no audio";
       this.log("local", `livestream ${device.getName()} running (${codec}, ${meta.videoWidth}x${meta.videoHeight}, ${audioNote})`);
       video.on("data", (chunk) => this.live.feed(sn, chunk));
-      video.on("end", () => this.live.ended(sn));
+      video.on("end", () => this.live.interrupted(sn, session));
       if (hasAudio) audio.on("data", (chunk) => this.live.feedAudio(sn, chunk));
     });
     c.on("station livestream stop", (_st, device) => {
-      this.live.ended(device.getSerial());
+      this.live.interrupted(device.getSerial());
       this.log("local", `livestream ${device.getName()} stopped`);
     });
 
