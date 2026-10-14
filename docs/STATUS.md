@@ -132,7 +132,9 @@ device `eufy-local-bridge` so existing sessions need no new 2FA code.
   (audio waits for the first keyframe). Earlier crashes coincided with an unreachable bridge
   stream (restart, 409); whether those are gone too is open. Not reported upstream (ADR 0012).
 - The HomeBase streams one camera at a time. Several live views at once (e.g. dashboard cards
-  in live mode plus the Home app) displace each other; a displaced camera is refused for 30 s.
+  in live mode plus the Home app) displace each other; a displaced camera is refused for 45 s
+  (30 s let Home Assistant's retry of a camera nobody watched any more take the HomeBase back
+  from the camera just opened in the Home app).
 
 - `eufy-security-client` (bropat) is archived (2026-09-12) and deprecated on npm; the author
   points to mega-yfue/eufy-sdk. Eufy is shutting down the legacy APIs it uses, so login may
