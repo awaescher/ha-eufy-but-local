@@ -43,6 +43,12 @@ With this repository (bridge natively on macOS, Home Assistant 2026.10.1 from `d
   bridge, HA in Docker on a NAS): all cameras show their still image (latest event thumbnail)
   in the Home app on Mac, iPhone and Apple TV.
 
+- Local event detection (2026-10-15): walking past Terrasse showed up in Home Assistant about
+  7 s later (event database polled every 5 s at the time; now 2 s by default). A camera that
+  is streaming records nothing: the Home app on a Mac kept the large camera tile live and
+  restarted Terrasse's stream every ~150 s until the app was closed. No P2P command 1312
+  (local push) arrived for a recording made while no stream ran.
+
 Not yet verified on hardware:
 
 - Live view of a camera opened from the Home app (HomeKit), with `video_codec: copy`. First

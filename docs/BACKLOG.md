@@ -33,9 +33,9 @@ Things worth doing, roughly in priority order. What is verified and what is not 
 
 ## Events and local operation
 
-7. **Local push (P2P command 1312).** Not seen on hardware so far. Walk past a camera with no
-   livestream running and look for `unhandled P2P message 1312`; if it shows up, decode it
-   with the library's push parser and emit person/motion locally (ADR 0003).
+7. **Local push (P2P command 1312).** Not seen on hardware: a recording made while no stream
+   ran (2026-10-15) brought no 1312, so the HomeBase most likely does not send it to the
+   bridge. Events come from polling the event database (about 7 s after the motion).
 8. **Unhandled P2P command 6246** (`{"cmd":6246,"payload":{"num":1}}`, seen right before a
    livestream starts). Probably harmless; find out what it means or stop logging it.
 9. **Start without internet**: cache the station/device records after a successful cloud

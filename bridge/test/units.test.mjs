@@ -29,6 +29,8 @@ describe("config", () => {
     const c = readConfig({});
     assert.equal(c.port, 3080);
     assert.equal(c.token, "");
+    assert.equal(c.pollSeconds, 2);
+    assert.equal(readConfig({ POLL_SEC: "5" }).pollSeconds, 5);
     assert.equal(c.simulator, false);
     assert.equal(c.debug, false);
     assert.equal(readConfig({ BRIDGE_DEBUG: "true" }).debug, true);

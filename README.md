@@ -177,7 +177,7 @@ with the defaults, and you log in from Home Assistant. In practice, set only
 | `BRIDGE_PORT` | optional | `3080` | HTTP port |
 | `BRIDGE_HOST` | optional | `0.0.0.0` | listen address |
 | `HOMEBASE_IP`, `HOMEBASE_SERIAL` | optional | – | pin the HomeBase address if discovery fails (serial is logged on first start) |
-| `POLL_SEC` | optional | `5` | event database poll interval |
+| `POLL_SEC` | optional | `2` | how often (seconds) the bridge asks the HomeBase's event database for new recordings (locally, over P2P; wakes no camera) |
 | `PROPERTY_REFRESH_SEC` | optional | `60` | how often the bridge asks the HomeBase (locally, over P2P) for the current camera settings, so changes made in the Eufy app show up in Home Assistant; `0` = only when connecting |
 | `LIVE_MAX_SEC` | optional | `120` | maximum livestream duration |
 | `LIVE_IDLE_SEC` | optional | `10` | stop the stream this long after the last viewer left |

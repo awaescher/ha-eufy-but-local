@@ -13,7 +13,9 @@ export function readConfig(env = process.env) {
     port: int(env.BRIDGE_PORT, 3080, "BRIDGE_PORT"),
     token: env.BRIDGE_TOKEN || "",
     dataDir: env.DATA_DIR || "./data",
-    pollSeconds: int(env.POLL_SEC, 5, "POLL_SEC"),
+    // Event database poll (P2P, local, wakes no camera). A recording showed up in Home
+    // Assistant about 7 s after walking past a camera (2026-10-15); polling adds half of this.
+    pollSeconds: int(env.POLL_SEC, 2, "POLL_SEC"),
     // Asks the HomeBase for the current camera settings (P2P, local). Changes made in the Eufy
     // app only arrive this way unless the HomeBase pushes them. 0 = only at connect.
     refreshSeconds: int(env.PROPERTY_REFRESH_SEC, 60, "PROPERTY_REFRESH_SEC"),
