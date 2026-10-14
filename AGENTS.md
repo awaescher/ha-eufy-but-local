@@ -50,6 +50,7 @@ cd bridge
 npm install
 npm test                       # node:test, no extra dependencies
 npm run simulator              # bridge with a simulated HomeBase (2FA code 123456)
+                               # SIM_VIDEO_DELAY_MS=5000: audio before the first keyframe
 node --test --experimental-test-coverage test/*.test.mjs
 
 # Integration

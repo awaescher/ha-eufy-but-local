@@ -23,6 +23,7 @@ if (config.simulator) {
   ({ lib, simulator } = createSimulator({
     tfaCode: process.env.SIM_TFA_CODE ?? "123456",
     eventIntervalSeconds: Number(process.env.SIM_EVENT_INTERVAL ?? 60),
+    videoDelayMs: Number(process.env.SIM_VIDEO_DELAY_MS ?? 0),
   }));
   log("bridge", "SIMULATOR MODE – no real HomeBase involved");
 } else {

@@ -228,7 +228,10 @@ export class LiveStreams {
   /** Feeds one AAC frame (ADTS) to all viewers and the GOP cache. */
   feedAudio(sn, chunk) {
     const s = this.streams.get(sn);
-    if (!s) return;
+    // A camera often joins mid-GOP and the library drops video until the next keyframe, while
+    // audio already flows (seen for seconds). Readers that probe the stream then give up on
+    // the video track (go2rtc fails, Home Assistant's stream worker cannot mux), so audio waits.
+    if (!s || s.firstKeyframeAt == null) return;
     const now = this.now();
     const frameMs = adtsDurationMs(chunk) ?? 64;
     let at = s.lastAudioAt === null ? now : s.lastAudioAt + frameMs;
@@ -244,6 +247,8 @@ export class LiveStreams {
       s.gop = [unit];
       s.gopBytes = unit.data.length;
       this.#keyframe(sn, s, unit);
+    } else if (s.firstKeyframeAt == null) {
+      return; // nothing before the first keyframe can be decoded
     } else if (s.gop.length > 0 && s.gopBytes < GOP_CACHE_MAX_BYTES) {
       s.gop.push(unit);
       s.gopBytes += unit.data.length;

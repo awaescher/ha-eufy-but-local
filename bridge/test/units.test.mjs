@@ -300,6 +300,21 @@ describe("LiveStreams", () => {
     assert.equal(live.viewerCount("C1"), 0);
   });
 
+  it("delivers nothing before the first keyframe, so every viewer starts with one", async () => {
+    const { live } = make();
+    const v = new Sink();
+    await live.addViewer("C1", v);
+    live.started("C1", { audio: true });
+    const ADTS = Buffer.from([0xff, 0xf1, 0x60, 0x40, 0x18, 0x02, 0x40, 0, 0]);
+    live.feedAudio("C1", ADTS);
+    live.feed("C1", PFRAME);
+    assert.equal(v.units.length, 0);
+    live.feed("C1", Buffer.concat([SPS4, PFRAME]));
+    live.feedAudio("C1", ADTS);
+    assert.deepEqual(v.units.map((u) => u.kind), ["video", "audio"]);
+    assert.equal(v.units[0].keyframe, true);
+  });
+
   it("logs where the start-up time goes", async () => {
     let t = 1000;
     const logs = [];

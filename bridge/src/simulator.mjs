@@ -72,8 +72,10 @@ export function splitAdts(buf) {
  * @param {string|null} [opts.tfaCode]          require this 2FA code on first login (null = no 2FA)
  * @param {number} [opts.eventIntervalSeconds]  emit random events periodically (0 = off)
  * @param {number} [opts.fps]
+ * @param {number} [opts.videoDelayMs]         audio flows this long before the first video frame,
+ *                                             like a real camera that joins mid-GOP
  */
-export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, fps = 15 } = {}) {
+export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, fps = 15, videoDelayMs = 0 } = {}) {
   const video = readFileSync(join(ASSETS, "stream.h264"));
   const frames = splitFrames(video);
   // AAC-LC, 16 kHz, mono like the real cameras: one frame = 1024 samples = 64 ms.
@@ -259,14 +261,17 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
       streams.set(sn, entry);
       setTimeout(() => {
         this.emit("station livestream start", station, device, { videoCodec: 0, videoFPS: fps, videoWidth: 640, videoHeight: 360, audioCodec: 2 }, readable, audio);
-        entry.timer = setInterval(() => readable.push(frames[i++ % frames.length]), 1000 / fps);
         entry.audioTimer = setInterval(() => audio.push(audioFrames[a++ % audioFrames.length]), 64);
+        entry.delay = setTimeout(() => {
+          entry.timer = setInterval(() => readable.push(frames[i++ % frames.length]), 1000 / fps);
+        }, videoDelayMs);
       }, 50);
     }
 
     async stopStationLivestream(sn) {
       const entry = streams.get(sn);
       if (!entry) return;
+      clearTimeout(entry.delay);
       clearInterval(entry.timer);
       clearInterval(entry.audioTimer);
       streams.delete(sn);
