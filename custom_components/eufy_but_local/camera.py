@@ -2,15 +2,49 @@
 
 from __future__ import annotations
 
+import asyncio
+from asyncio.subprocess import PIPE
 from datetime import timedelta
+import logging
 
 from homeassistant.components.camera import Camera, CameraEntityFeature
-from homeassistant.components.ffmpeg import async_get_image
+from homeassistant.components.ffmpeg import get_ffmpeg_manager
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import EufyLocalConfigEntry, EufyLocalCoordinator
 from .entity import EufyCameraEntity
+
+_LOGGER = logging.getLogger(__name__)
+
+# The Home app gives up on a snapshot after a few seconds and keeps showing the old one.
+FRAME_TIMEOUT = 5
+
+
+async def h264_to_jpeg(binary: str, frame: bytes) -> tuple[bytes | None, str]:
+    """Decode one H.264 keyframe to a JPEG with ffmpeg: (jpeg, "") or (None, reason)."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            binary,
+            *("-hide_banner", "-loglevel", "error", "-f", "h264", "-i", "pipe:0"),
+            *("-frames:v", "1", "-c:v", "mjpeg", "-f", "image2pipe", "pipe:1"),
+            stdin=PIPE,
+            stdout=PIPE,
+            stderr=PIPE,
+        )
+    except OSError as err:
+        return None, str(err)
+    try:
+        async with asyncio.timeout(FRAME_TIMEOUT):
+            out, err = await proc.communicate(frame)
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
+        return None, f"no picture within {FRAME_TIMEOUT} s"
+    if proc.returncode or not out:
+        reason = err.decode(errors="replace").strip()[-300:]
+        return None, reason or f"exit code {proc.returncode}"
+    return out, ""
 
 
 async def async_setup_entry(
@@ -35,6 +69,7 @@ class EufyLocalCamera(EufyCameraEntity, Camera):
         self._image: bytes | None = None
         # ("event", imageAt) or ("frame", frameAt): what `_image` shows.
         self._image_key: tuple[str, str | None] | None = None
+        self._frame_tried: str | None = None
 
     @property
     def model(self) -> str | None:
@@ -58,13 +93,10 @@ class EufyLocalCamera(EufyCameraEntity, Camera):
         frame_at = self.cam.get("frameAt")
         image_at = self.cam.get("imageAt")
         if frame_at and (image_at is None or frame_at > image_at):
-            if self._image_key != ("frame", frame_at):
-                # The bridge keeps the frame as H.264; ffmpeg turns it into a JPEG.
-                image = await async_get_image(
-                    self.hass, self.coordinator.client.frame_url(self.device_sn)
-                )
-                if image:
-                    self._image, self._image_key = image, ("frame", frame_at)
+            # One attempt per frame: a failing conversion must not delay every snapshot.
+            if self._frame_tried != frame_at:
+                self._frame_tried = frame_at
+                await self._convert_frame(frame_at)
             if self._image_key == ("frame", frame_at):
                 return self._image
         if self._image is None or self._image_key != ("event", image_at):
@@ -72,6 +104,20 @@ class EufyLocalCamera(EufyCameraEntity, Camera):
             if image:
                 self._image, self._image_key = image, ("event", image_at)
         return self._image
+
+    async def _convert_frame(self, frame_at: str) -> None:
+        frame = await self.coordinator.client.frame(self.device_sn)
+        if not frame:
+            return
+        image, reason = await h264_to_jpeg(get_ffmpeg_manager(self.hass).binary, frame)
+        if image:
+            self._image, self._image_key = image, ("frame", frame_at)
+            return
+        _LOGGER.warning(
+            "%s: could not decode the last live frame (%s), showing the event thumbnail",
+            self.entity_id,
+            reason,
+        )
 
     async def async_snooze(self, duration: timedelta) -> None:
         """Silence the camera's detection and notifications for `duration` (P2P)."""

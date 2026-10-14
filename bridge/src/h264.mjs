@@ -16,3 +16,14 @@ export function findSpsOffset(buf) {
   }
   return -1;
 }
+
+const NAL_IDR = 5;
+
+/** Whether the buffer contains an IDR slice (the picture of a keyframe, not just SPS/PPS). */
+export function hasIdrSlice(buf) {
+  for (let i = 0; i + 3 < buf.length; i++) {
+    if (buf[i] !== 0 || buf[i + 1] !== 0 || buf[i + 2] !== 1) continue;
+    if ((buf[i + 3] & 0x1f) === NAL_IDR) return true;
+  }
+  return false;
+}

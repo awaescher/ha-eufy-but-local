@@ -14,7 +14,7 @@
 // next keyframe (`boundBacklog`) instead of falling further behind. The latest keyframe of each
 // camera is kept after the stream ended, as a still image of what the camera saw last.
 
-import { findSpsOffset } from "./h264.mjs";
+import { findSpsOffset, hasIdrSlice } from "./h264.mjs";
 
 const GOP_CACHE_MAX_BYTES = 4 * 1024 * 1024;
 const ADTS_SAMPLE_RATES = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
@@ -252,22 +252,36 @@ export class LiveStreams {
       this.#keyframe(sn, s, unit);
     } else if (s.firstKeyframeAt == null) {
       return; // nothing before the first keyframe can be decoded
-    } else if (s.gop.length > 0 && s.gopBytes < GOP_CACHE_MAX_BYTES) {
-      s.gop.push(unit);
-      s.gopBytes += unit.data.length;
+    } else {
+      if (s.gop.length > 0 && s.gopBytes < GOP_CACHE_MAX_BYTES) {
+        s.gop.push(unit);
+        s.gopBytes += unit.data.length;
+      }
+      if (unit.kind === "video" && s.pendingFrame) {
+        // SPS/PPS and the IDR slice may arrive as separate frames; the still needs both.
+        s.pendingFrame.data = Buffer.concat([s.pendingFrame.data, unit.data]);
+        if (hasIdrSlice(unit.data)) this.#completeFrame(sn, s);
+      }
     }
     for (const v of s.viewers) v.push(unit);
   }
 
   #keyframe(sn, s, unit) {
     const now = this.now();
-    s.lastFrame = { data: unit.data, at: new Date(now).toISOString() };
+    s.pendingFrame = { data: unit.data, at: new Date(now).toISOString() };
     if (s.firstKeyframeAt == null) {
       s.firstKeyframeAt = now;
       // Where the start-up time goes: waking the camera vs. waiting for a keyframe.
       const since = (t) => (t == null || s.requestedAt == null ? "?" : `${t - s.requestedAt} ms`);
       this.log(`livestream ${this.nameOf(sn)}: started after ${since(s.startedAt)}, first frame after ${since(s.firstVideoAt)}, first keyframe after ${since(now)}`);
     }
+    if (hasIdrSlice(unit.data)) this.#completeFrame(sn, s);
+  }
+
+  #completeFrame(sn, s) {
+    s.lastFrame = s.pendingFrame;
+    s.pendingFrame = null;
+    const now = this.now();
     if (s.frameNotifiedAt == null || now - s.frameNotifiedAt >= FRAME_NOTIFY_MS) {
       s.frameNotifiedAt = now;
       this.onFrame(sn, s.lastFrame.at);

@@ -15,6 +15,7 @@ import { BridgeState } from "../src/state.mjs";
 const SPS4 = Buffer.from([0, 0, 0, 1, 0x67, 0x42]);
 const SPS3 = Buffer.from([0, 0, 1, 0x67, 0x42]);
 const PFRAME = Buffer.from([0, 0, 0, 1, 0x41, 0x9a, 0x00]);
+const IDR = Buffer.from([0, 0, 0, 1, 0x65, 0x88, 0x84]);
 
 class Sink {
   constructor() { this.chunks = []; this.units = []; this.ended = false; }
@@ -300,6 +301,23 @@ describe("LiveStreams", () => {
     assert.equal(live.viewerCount("C1"), 0);
   });
 
+  it("completes a still frame whose IDR slice arrives after SPS/PPS", async () => {
+    const frames = [];
+    const { live } = make({ onFrame: (sn, at) => frames.push(at) });
+    const v = new Sink();
+    await live.addViewer("C1", v);
+    live.started("C1");
+    live.feed("C1", SPS4);
+    assert.equal(live.lastFrame("C1"), null, "SPS/PPS alone is no picture");
+    live.feed("C1", IDR);
+    assert.deepEqual(live.lastFrame("C1").data, Buffer.concat([SPS4, IDR]));
+    assert.equal(frames.length, 1);
+    assert.equal(v.units.length, 2, "viewers still get both units");
+    const late = new Sink();
+    await live.addViewer("C1", late);
+    assert.equal(late.units.length, 2, "and the GOP cache holds both");
+  });
+
   it("delivers nothing before the first keyframe, so every viewer starts with one", async () => {
     const { live } = make();
     const v = new Sink();
@@ -339,9 +357,9 @@ describe("LiveStreams", () => {
     assert.equal(live.lastFrame("C1"), null);
     await live.addViewer("C1", new Sink());
     live.started("C1");
-    live.feed("C1", Buffer.concat([Buffer.from([9]), SPS4, PFRAME]));
+    live.feed("C1", Buffer.concat([Buffer.from([9]), SPS4, IDR]));
     t += 4000;
-    live.feed("C1", Buffer.concat([SPS3, PFRAME]));
+    live.feed("C1", Buffer.concat([SPS3, IDR]));
     assert.deepEqual(frames, ["2026-10-14T10:00:00.000Z"], "throttled");
     assert.equal(findSpsOffset(live.lastFrame("C1").data), 0);
     live.ended("C1");
