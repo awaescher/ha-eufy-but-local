@@ -213,6 +213,17 @@ describe("bridge API (simulated HomeBase)", () => {
     await until(() => b.state.cameras[CAM].live === false);
   });
 
+  it("keeps the last live keyframe as a still frame without starting the camera", async () => {
+    assert.equal((await b.api(`/api/frame/${SIM_CAMERAS[2].sn}`)).status, 404, "no stream yet");
+    // The previous test streamed CAM.
+    const res = await b.api(`/api/frame/${CAM}.h264`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("content-type"), "video/h264");
+    assert.equal(findSpsOffset(Buffer.from(await res.arrayBuffer())), 0);
+    assert.equal(res.headers.get("x-frame-at"), b.state.cameras[CAM].frameAt);
+    assert.equal(b.state.cameras[CAM].live, false);
+  });
+
   it("streams MPEG-TS with video and audio by default", async () => {
     const cam = SIM_CAMERAS[2].sn;
     const ctrl = new AbortController();
@@ -230,6 +241,32 @@ describe("bridge API (simulated HomeBase)", () => {
         pending = pending.subarray(188);
       }
     }
+    ctrl.abort();
+    await until(() => !b.state.cameras[cam].live);
+  });
+
+  it("streams FLV with video and audio, starting at a keyframe", async () => {
+    const cam = SIM_CAMERAS[2].sn;
+    await until(() => !b.state.cameras[cam].live);
+    await until(() => b.connector.live.admits(cam));
+    const ctrl = new AbortController();
+    const res = await b.api(`/api/stream/${cam}.flv`, { signal: ctrl.signal });
+    assert.equal(res.headers.get("content-type"), "video/x-flv");
+    const reader = res.body.getReader();
+    let buf = Buffer.alloc(0);
+    const types = [];
+    let at = 13;
+    while (!(types.includes(8) && types.filter((t) => t === 9).length >= 3)) {
+      const { value } = await reader.read();
+      buf = Buffer.concat([buf, value]);
+      while (at + 11 <= buf.length && at + 15 + buf.readUIntBE(at + 1, 3) <= buf.length) {
+        types.push(buf[at]);
+        at += 15 + buf.readUIntBE(at + 1, 3);
+      }
+    }
+    assert.equal(buf.subarray(0, 3).toString(), "FLV");
+    assert.equal(buf[4], 0x05, "audio and video");
+    assert.deepEqual(types.slice(0, 2), [18, 9], "metadata, then the AVC sequence header");
     ctrl.abort();
     await until(() => !b.state.cameras[cam].live);
   });

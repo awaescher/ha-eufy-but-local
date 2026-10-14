@@ -54,6 +54,7 @@ LOGGED_IN_STATE: dict[str, Any] = {
             "count": 120,
             "lastEventAt": None,
             "imageAt": "2026-10-13T08:00:00.000Z",
+            "frameAt": None,
             "live": False,
             "codec": None,
             "personAt": None,
@@ -97,6 +98,7 @@ class FakeBridge:
         self.property_writes: list[tuple[str, str, str, Any]] = []
         self.commands: list[tuple[str, str, dict[str, Any]]] = []
         self.images: dict[str, bytes] = {CAM: JPEG}
+        self.frames: dict[str, bytes] = {}
         self.image_requests = 0
         self.reject_guard = False
         self._queues: set[asyncio.Queue] = set()
@@ -209,6 +211,12 @@ class FakeBridge:
         self.state["cloudPush"] = body["cloudPush"]
         return web.json_response({"cloudPush": body["cloudPush"]})
 
+    async def _frame(self, request: web.Request) -> web.Response:
+        data = self.frames.get(request.match_info["sn"].removesuffix(".h264"))
+        if data is None:
+            return web.json_response({"error": "no frame"}, status=404)
+        return web.Response(body=data, content_type="video/h264")
+
     async def _image(self, request: web.Request) -> web.Response:
         self.image_requests += 1
         data = self.images.get(request.match_info["sn"])
@@ -234,6 +242,7 @@ class FakeBridge:
         app.router.add_post("/api/login", self._login)
         app.router.add_post("/api/code", self._code)
         app.router.add_get("/api/image/{sn}", self._image)
+        app.router.add_get("/api/frame/{sn}", self._frame)
         app.router.add_post("/api/station/{sn}/guard", self._guard)
         app.router.add_post("/api/config", self._config)
         app.router.add_post("/api/{kind}/{sn}/property", self._property)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from http import HTTPStatus
+from unittest.mock import patch
 
 from homeassistant.components.alarm_control_panel import (
     DOMAIN as ALARM_DOMAIN,
@@ -158,9 +159,42 @@ async def test_camera_image_is_cached_until_a_new_thumbnail(
     assert image.content == JPEG + b"new"
 
 
+async def test_camera_image_prefers_a_newer_live_frame(
+    hass: HomeAssistant, bridge: FakeBridge, setup_integration: MockConfigEntry
+) -> None:
+    coordinator = setup_integration.runtime_data
+    frame_jpeg = b"\xff\xd8live-frame\xff\xd9"
+    with patch(
+        "custom_components.eufy_but_local.camera.async_get_image", return_value=frame_jpeg
+    ) as ffmpeg:
+        # Older than the event thumbnail: the thumbnail wins, ffmpeg is not needed.
+        bridge.state["cameras"][CAM]["frameAt"] = "2026-10-13T07:00:00.000Z"
+        bridge.push_state()
+        await wait_for(lambda: coordinator.cameras[CAM]["frameAt"] is not None)
+        assert (await async_get_image(hass, CAMERA)).content == JPEG
+        ffmpeg.assert_not_called()
+
+        bridge.state["cameras"][CAM]["frameAt"] = "2026-10-13T09:30:00.000Z"
+        bridge.push_state()
+        await wait_for(lambda: coordinator.cameras[CAM]["frameAt"] == "2026-10-13T09:30:00.000Z")
+        assert (await async_get_image(hass, CAMERA)).content == frame_jpeg
+        await async_get_image(hass, CAMERA)
+        ffmpeg.assert_called_once()  # cached until the next frame
+        assert ffmpeg.call_args.args[1] == (
+            f"http://127.0.0.1:{bridge.port}/api/frame/{CAM}.h264?token={TOKEN}"
+        )
+
+        # ffmpeg fails: fall back to the event thumbnail.
+        ffmpeg.return_value = None
+        bridge.state["cameras"][CAM]["frameAt"] = "2026-10-13T09:40:00.000Z"
+        bridge.push_state()
+        await wait_for(lambda: coordinator.cameras[CAM]["frameAt"] == "2026-10-13T09:40:00.000Z")
+        assert (await async_get_image(hass, CAMERA)).content == JPEG
+
+
 async def test_stream_source_carries_token(hass: HomeAssistant, bridge: FakeBridge) -> None:
     source = await async_get_stream_source(hass, CAMERA)
-    assert source == f"http://127.0.0.1:{bridge.port}/api/stream/{CAM}.ts?token={TOKEN}"
+    assert source == f"http://127.0.0.1:{bridge.port}/api/stream/{CAM}.flv?token={TOKEN}"
 
 
 async def test_streaming_state(hass: HomeAssistant, bridge: FakeBridge) -> None:

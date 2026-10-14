@@ -73,6 +73,7 @@ bridge/
   src/eufy.mjs          EufyConnector: eufy-security-client events -> state
   src/images.mjs        serialized thumbnail downloads from the HomeBase database
   src/live.mjs          on-demand livestreams, viewer refcount, GOP cache, one camera per station
+  src/flv.mjs           FLV muxer (H.264 + AAC), the integration's stream source (ADR 0013)
   src/mpegts.mjs        MPEG-TS muxer (H.264 + AAC/ADTS)
   src/properties.mjs    whitelist of camera/HomeBase properties exposed to Home Assistant
   src/image-v2.mjs      v2 thumbnail decoder (ported, see third-party/)
@@ -107,7 +108,8 @@ docs/                   STATUS.md, architecture.md, offline-test-plan.md, adr/
 | POST | `/api/code` | `{code}` 2FA code or captcha answer |
 | GET | `/api/captcha` | image while `phase == "captcha"` |
 | GET | `/api/image/{sn}` | latest event thumbnail (JPEG) or 404 |
-| GET | `/api/stream/{sn}[.ts\|.h264]` | MPEG-TS (H.264 + AAC) or `.h264` raw video; first viewer wakes the camera; 409 while displaced by another camera of the station |
+| GET | `/api/frame/{sn}[.h264]` | latest live keyframe (SPS/PPS + IDR, raw H.264), kept after the stream ended; 404 if none; never starts the camera |
+| GET | `/api/stream/{sn}[.flv\|.ts\|.h264]` | FLV (used by the integration, ADR 0013) or MPEG-TS (H.264 + AAC; default without extension) or `.h264` raw video; first viewer wakes the camera; 409 while displaced by another camera of the station |
 | POST | `/api/station/{sn}/guard` | `{mode}`: `AWAY`, `HOME`, `DISARMED`, … |
 | POST | `/api/device/{sn}/property` | `{name, value}`: write a camera property over P2P; answers `{returnCode, ms}` once the HomeBase confirms |
 | POST | `/api/station/{sn}/property` | `{name, value}`: same for the HomeBase |
@@ -128,7 +130,7 @@ Snapshot shape:
   "stations": { "<sn>": { "name": "", "model": "T8010", "p2p": true, "guardMode": 1, "guardModeName": "HOME",
                           "properties": { "alarmVolume": 26, "...": "see bridge/src/properties.mjs" } } },
   "cameras": { "<sn>": { "name": "", "model": "T8113", "station": "<sn>", "battery": 87, "count": 120,
-                         "lastEventAt": null, "imageAt": null, "live": false, "codec": null,
+                         "lastEventAt": null, "imageAt": null, "frameAt": null, "live": false, "codec": null,
                          "personAt": null, "motionAt": null, "properties": { "statusLed": false, "...": "" } } }
 }
 ```

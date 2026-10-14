@@ -7,7 +7,8 @@
 //   POST /api/code   {code}              2FA code or captcha answer
 //   GET  /api/captcha                    captcha image (while requested)
 //   GET  /api/image/:sn                  latest event thumbnail (local)
-//   GET  /api/stream/:sn[.ts|.h264]      livestream (starts camera): MPEG-TS with audio, or raw H.264
+//   GET  /api/stream/:sn[.flv|.ts|.h264] livestream (starts camera): FLV or MPEG-TS with audio, or raw H.264
+//   GET  /api/frame/:sn[.h264]           latest live keyframe as raw H.264 (never starts the camera)
 //   POST /api/config {cloudPush}         switch optional cloud features (off by default)
 //   POST /api/station/:sn/guard {mode}   AWAY | HOME | DISARMED | ...
 //   GET  /api/device/:sn/properties      diagnostics: library properties of a device
@@ -21,6 +22,8 @@
 import http from "node:http";
 import { timingSafeEqual } from "node:crypto";
 
+import { FlvMuxer } from "./flv.mjs";
+import { boundBacklog } from "./live.mjs";
 import { TsMuxer } from "./mpegts.mjs";
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -118,30 +121,49 @@ export function createApi({ state, connector, credentials, simulator = null, tok
     },
 
     "GET stream": async ({ req, res, id }) => {
-      // {sn} or {sn}.ts: MPEG-TS with video and audio; {sn}.h264: raw video only.
-      const raw = String(id ?? "").endsWith(".h264");
-      const sn = String(id ?? "").replace(/\.(h264|ts)$/, "");
+      // {sn}.flv: FLV, {sn} or {sn}.ts: MPEG-TS, both with video and audio; {sn}.h264: raw video only.
+      const format = /\.(flv|h264|ts)$/.exec(String(id ?? ""))?.[1] ?? "ts";
+      const raw = format === "h264";
+      const sn = String(id ?? "").replace(/\.(flv|h264|ts)$/, "");
       if (!state.cameras[sn]) return send(res, 404, { error: "unknown camera" });
       if (!connector.connected) return send(res, 503, { error: "not connected" });
       if (!connector.live.admits(sn)) {
         return send(res, 409, { error: "another camera of this HomeBase took over the livestream" });
       }
-      res.writeHead(200, { "content-type": raw ? "video/h264" : "video/mp2t", "cache-control": "no-store", connection: "close" });
+      const contentType = { flv: "video/x-flv", h264: "video/h264", ts: "video/mp2t" }[format];
+      res.writeHead(200, { "content-type": contentType, "cache-control": "no-store", connection: "close" });
       let muxer = null;
+      const accept = boundBacklog(() => res.writableLength, {
+        onSkip: () => {
+          connector.live.skipped(sn);
+          log("local", `livestream ${state.cameras[sn]?.name ?? sn}: a viewer fell behind, skipping to the next keyframe`);
+        },
+      });
       const viewer = {
         push(unit) {
+          if (!accept(unit)) return;
           if (raw) {
             if (unit.kind === "video") res.write(unit.data);
             return;
           }
           // Created on the first unit: by then the stream has started and says whether it has audio.
-          muxer ??= new TsMuxer({ audio: connector.live.hasAudio(sn) });
+          if (!muxer) {
+            const opts = { audio: connector.live.hasAudio(sn), fps: connector.live.fps(sn) };
+            muxer = format === "flv" ? new FlvMuxer(opts) : new TsMuxer(opts);
+          }
           res.write(muxer.mux(unit));
         },
         end: () => res.end(),
       };
       req.on("close", () => connector.live.removeViewer(sn, viewer));
       await connector.live.addViewer(sn, viewer);
+    },
+
+    "GET frame": ({ res, id }) => {
+      const frame = connector.live.lastFrame(String(id ?? "").replace(/\.h264$/, ""));
+      if (!frame) return send(res, 404, { error: "no frame" });
+      res.writeHead(200, { "content-type": "video/h264", "cache-control": "no-store", "x-frame-at": frame.at });
+      res.end(frame.data);
     },
 
     // Read-only diagnostics: what the library knows about a device, and the local event list.

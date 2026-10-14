@@ -14,7 +14,7 @@ import { BridgeState } from "../src/state.mjs";
 
 const tick = () => new Promise((r) => setImmediate(r));
 
-function setup({ initialize, env = {} } = {}) {
+function setup({ initialize, env = {}, lib = {} } = {}) {
   const clients = [];
   class FakeClient extends EventEmitter {
     constructor(cfg) {
@@ -25,9 +25,10 @@ function setup({ initialize, env = {} } = {}) {
       this.persistentData = {};
     }
     async registerPushNotifications() { this.calls.push("push open"); }
-    static async initialize(cfg) {
+    static async initialize(cfg, logger) {
       if (initialize) await initialize(cfg);
       const c = new FakeClient(cfg);
+      c.logger = logger;
       clients.push(c);
       return c;
     }
@@ -39,7 +40,7 @@ function setup({ initialize, env = {} } = {}) {
   const config = { ...readConfig(env), dataDir: mkdtempSync(join(tmpdir(), "eufy-conn-")), pollSeconds: 60 };
   const logs = [];
   const log = (tag, msg) => logs.push(`[${tag}] ${msg}`);
-  const connector = new EufyConnector({ state, config, log, lib: { EufySecurity: FakeClient, P2PConnectionType, GuardMode, PropertyName } });
+  const connector = new EufyConnector({ state, config, log, lib: { EufySecurity: FakeClient, P2PConnectionType, GuardMode, PropertyName, ...lib } });
   return { state, connector, clients, logs };
 }
 
@@ -220,4 +221,53 @@ describe("EufyConnector", () => {
     await assert.rejects(connector.setGuardMode("S1", "party"), RangeError);
     await assert.rejects(connector.setGuardMode("S1", "away"), /Not connected/);
   });
+
+  describe("library log", () => {
+    const levels = [];
+    const lib = { LogLevel: { Debug: 1, Off: 6 }, setLoggingLevel: (category, level) => levels.push([category, level]) };
+    const unhandled = (commandId) => [
+      "[p2p] [P2PClientProtocol.handleDataControl] Handle DATA DATA - Not implemented message",
+      { stationSN: "S1", commandId, channel: 0, data: "7b2261223a317d" },
+    ];
+
+    it("logs P2P messages the library does not handle, the local push every time", async () => {
+      const { connector, clients, logs } = setup({ lib });
+      await connector.start({ email: "a", password: "b" });
+      const { logger } = clients[0];
+      for (let i = 0; i < 5; i++) {
+        logger.debug(...unhandled(1312));
+        logger.debug(...unhandled(9999));
+      }
+      logger.debug("[p2p] Received message - DATA DATA - Processing sequence 7...", {});
+      const lines = (id) => logs.filter((l) => l.includes(`unhandled P2P message ${id} `));
+      assert.equal(lines(1312).length, 5);
+      assert.match(lines(1312)[0], /local push notification.*: 7b2261223a317d$/);
+      assert.equal(lines(9999).length, 3, "other messages only a few times");
+      assert.equal(logs.filter((l) => l.includes("Processing sequence")).length, 0);
+    });
+
+    it("keeps the P2P debug log off while a livestream runs", async () => {
+      levels.length = 0;
+      const { connector, state } = setup({ lib });
+      await connector.start({ email: "a", password: "b" });
+      assert.deepEqual(levels.at(-1), ["p2p", 1]);
+      state.upsertCamera("C1", { station: "S1" });
+      await connector.live.addViewer("C1", { push() {}, end() {} });
+      connector.live.started("C1");
+      assert.deepEqual(levels.at(-1), ["p2p", 6]);
+      connector.live.ended("C1");
+      assert.deepEqual(levels.at(-1), ["p2p", 1]);
+    });
+
+    it("logs the station's connection flags but never its keys", async () => {
+      const { connector, clients, logs } = setup();
+      await connector.start({ email: "a", password: "b" });
+      const st = { ...station(), getRawStation: () => ({ support_connect_mode: 2, dsk_key: "SECRET", station_sn: "S1" }) };
+      clients[0].emit("station added", st);
+      const line = logs.find((l) => l.includes("connection flags"));
+      assert.match(line, /support_connect_mode=2/);
+      assert.doesNotMatch(logs.join("\n"), /SECRET/);
+    });
+  });
 });
+

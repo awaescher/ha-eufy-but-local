@@ -55,7 +55,7 @@ export class BridgeState extends EventEmitter {
   upsertCamera(sn, fields) {
     this.cameras[sn] = {
       name: sn, model: null, station: null, battery: null, count: null,
-      lastEventAt: null, imageAt: null, live: false, codec: null, personAt: null, motionAt: null,
+      lastEventAt: null, imageAt: null, frameAt: null, live: false, codec: null, personAt: null, motionAt: null,
       properties: {},
       ...this.cameras[sn], ...fields,
       properties: { ...this.cameras[sn]?.properties, ...fields.properties },
