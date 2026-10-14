@@ -14,7 +14,7 @@ Scope: HomeBase 2 (T8010), eufyCam 2C (T8113), eufyCam 2C Pro (T8142), the only 
 |---|---|
 | camera | live view (MPEG-TS, H.264 + AAC audio), still image = last event thumbnail |
 | event | "Activity": `local_recording` (local), `person` / `motion` (cloud push, off by default) |
-| binary_sensor | "New recording" per camera, "Local P2P connection" per HomeBase |
+| binary_sensor | "Motion" per camera, "Local P2P connection" per HomeBase |
 | image | "Last event image" |
 | sensor | battery, last event, stored events |
 | alarm_control_panel | HomeBase guard mode (fixed HA states) |

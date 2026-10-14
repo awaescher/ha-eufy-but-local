@@ -61,7 +61,7 @@ decisions: [docs/adr/](docs/adr/README.md).
 
 Per camera: camera (still image = latest event thumbnail or the last live frame, whichever is
 newer; live view on demand), event
-"Activity" (`local_recording`, `person`, `motion`), binary sensor "New recording", image
+"Activity" (`local_recording`, `person`, `motion`), binary sensor "Motion" (on for 30 s after a new recording), image
 "Last event image", battery, last event, stored events.
 Per HomeBase: alarm panel, select "Guard mode", "Local P2P connection".
 
@@ -220,11 +220,11 @@ homekit:
       camera.front_door:
         support_audio: true
         video_codec: copy            # the bridge already delivers H.264, no transcoding
-        linked_motion_sensor: binary_sensor.front_door_new_recording
+        linked_motion_sensor: binary_sensor.front_door_motion
       camera.garage:
         support_audio: true
         video_codec: copy
-        linked_motion_sensor: binary_sensor.garage_new_recording
+        linked_motion_sensor: binary_sensor.garage_motion
 ```
 
 Alternatively, Home Assistant's docs suggest one HomeKit instance per camera in accessory
@@ -250,15 +250,14 @@ homekit:
       camera.front_door:
         support_audio: true
         video_codec: copy
-        linked_motion_sensor: binary_sensor.front_door_new_recording
+        linked_motion_sensor: binary_sensor.front_door_motion
 ```
 
 - **Entity IDs:** the camera entity is named after the device (Eufy app name), so a camera
   called "Garage" becomes `camera.garage`. Umlauts are dropped ("Haustüre" →
-  `camera.hausture`). The motion sensor is the camera's "New recording" binary sensor
-  (`…_new_recording`; `…_neue_aufnahme` if Home Assistant ran in German when the entity was
-  created; installations from before 0.1.13 keep their old ID, `…_event_local` or
-  `…_ereignis_lokal`). Check the exact IDs under *Settings → Devices & services → Entities*.
+  `camera.hausture`). The motion sensor is the camera's "Motion" binary sensor (`…_motion`;
+  `…_bewegung` if Home Assistant ran in German when the entity was created; installations
+  from before 0.1.14 keep their old ID, `…_event_local` or `…_ereignis_lokal`). Check the exact IDs under *Settings → Devices & services → Entities*.
 - **One `homekit:` key:** keep a single `homekit:` key in `configuration.yaml` and add more
   bridges as further list items. A second `homekit:` key silently replaces the first (the log
   says `duplicate key "homekit"`), and the devices of the first bridge disappear from the
@@ -270,7 +269,7 @@ homekit:
 
 ### Notifications with a picture
 
-`linked_motion_sensor` adds a motion sensor to the camera in the Home app. It turns on when the
+`linked_motion_sensor` adds the camera's "Motion" sensor to it in the Home app. It turns on when the
 HomeBase stores a new recording (about 7 s after the motion on hardware) and stays on for 30 s.
 Turn on notifications for it in the Home app: open the camera, tap the settings (gear) icon,
 *Status and Notifications* (names vary a little between iOS versions). The notification shows the camera's still image, i.e. the

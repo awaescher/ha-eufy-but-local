@@ -11,7 +11,7 @@ whole network including the bridge host.
 
 | # | Scenario | Expectation (from code reading) | Result |
 |---|---|---|---|
-| 1 | HomeBase offline, walk past a camera | Local event count rises, `New recording` turns on, no `person` push | |
+| 1 | HomeBase offline, walk past a camera | Local event count rises, `Motion` turns on, no `person` push | |
 | 2 | Same, check thumbnail | New thumbnail via local database | |
 | 3 | Same, open live view | Stream via LAN-only P2P | |
 | 4 | Same, switch guard mode in HA | Mode changes via P2P | |

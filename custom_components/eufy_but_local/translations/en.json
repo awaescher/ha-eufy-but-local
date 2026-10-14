@@ -63,7 +63,7 @@
   "entity": {
     "binary_sensor": {
       "local_activity": {
-        "name": "New recording"
+        "name": "Motion"
       },
       "p2p_local": {
         "name": "Local P2P connection"
