@@ -61,7 +61,7 @@ decisions: [docs/adr/](docs/adr/README.md).
 
 Per camera: camera (still image = latest event thumbnail or the last live frame, whichever is
 newer; live view on demand), event
-"Activity" (`local_recording`, `person`, `motion`), binary sensor "Event (local)", image
+"Activity" (`local_recording`, `person`, `motion`), binary sensor "New recording", image
 "Last event image", battery, last event, stored events.
 Per HomeBase: alarm panel, select "Guard mode", "Local P2P connection".
 
@@ -217,15 +217,48 @@ homekit:
         - camera.front_door
         - camera.garage
     entity_config:
-      camera.front_door: &eufy_cam
+      camera.front_door:
         support_audio: true
         video_codec: copy            # the bridge already delivers H.264, no transcoding
-      camera.garage: *eufy_cam
+        linked_motion_sensor: binary_sensor.front_door_new_recording
+      camera.garage:
+        support_audio: true
+        video_codec: copy
+        linked_motion_sensor: binary_sensor.garage_new_recording
+```
+
+Alternatively, Home Assistant's docs suggest one HomeKit instance per camera in accessory
+mode. A slow camera stream then cannot slow down the other devices of the shared bridge. The
+catch: every camera is a separate HomeKit accessory. It does **not** appear on its own: add
+each one in the Home app (*+ → Add Accessory → More options…*) with the code from Home
+Assistant's notification, and open its port in the host firewall.
+
+```yaml
+homekit:
+  - name: HASS Bridge                # your existing bridge, unchanged
+    port: 21063
+    filter:
+      include_entities:
+        - light.living_room
+  - name: Front door camera          # one instance per camera
+    port: 21064
+    mode: accessory
+    filter:
+      include_entities:
+        - camera.front_door
+    entity_config:
+      camera.front_door:
+        support_audio: true
+        video_codec: copy
+        linked_motion_sensor: binary_sensor.front_door_new_recording
 ```
 
 - **Entity IDs:** the camera entity is named after the device (Eufy app name), so a camera
   called "Garage" becomes `camera.garage`. Umlauts are dropped ("Haustüre" →
-  `camera.hausture`). Check the exact IDs under *Settings → Devices & services → Entities*.
+  `camera.hausture`). The motion sensor is the camera's "New recording" binary sensor
+  (`…_new_recording`; `…_neue_aufnahme` if Home Assistant ran in German when the entity was
+  created; installations from before 0.1.13 keep their old ID, `…_event_local` or
+  `…_ereignis_lokal`). Check the exact IDs under *Settings → Devices & services → Entities*.
 - **One `homekit:` key:** keep a single `homekit:` key in `configuration.yaml` and add more
   bridges as further list items. A second `homekit:` key silently replaces the first (the log
   says `duplicate key "homekit"`), and the devices of the first bridge disappear from the
@@ -235,19 +268,25 @@ homekit:
 - **If the video stays black,** remove `video_codec: copy`; Home Assistant then transcodes
   with `libx264`, which costs CPU.
 
+### Notifications with a picture
+
+`linked_motion_sensor` adds a motion sensor to the camera in the Home app. It turns on when the
+HomeBase stores a new recording (about 7 s after the motion on hardware) and stays on for 30 s.
+Turn on notifications for it in the Home app: open the camera, tap the settings (gear) icon,
+*Status and Notifications* (names vary a little between iOS versions). The notification shows the camera's still image, i.e. the
+thumbnail of the recording.
+
+- A second recording within the 30 s does not notify again.
+- Away from home, notifications come through your home hub (HomePod or Apple TV).
+- If a notification shows the previous recording's picture, the Home app asked before the
+  bridge had fetched the new thumbnail; please report it.
+
 ### Start time in the Home app
 
 Home Assistant's HomeKit Bridge reads the camera with the `ffmpeg` command line tool. The
 integration hands it an FLV stream, which ffmpeg starts after 2.8 s against the simulator
 (MPEG-TS: 5.4 s, ADR 0013). No HomeKit setting is needed for this. On real hardware, waking
 the camera adds about 2 s.
-
-Alternatively, Home Assistant's docs suggest one HomeKit instance per camera in accessory
-mode (`mode: accessory`, its own `port`, one camera in `include_entities`). A slow camera
-stream then cannot slow down the other devices of the shared bridge. The catch: every camera
-is a separate HomeKit accessory. It does **not** appear on its own: add each one in the Home
-app (*+ → Add Accessory → More options…*) with the code from Home Assistant's notification,
-and open its port in the host firewall.
 
 ### What it does with your cameras
 
@@ -256,6 +295,9 @@ and open its port in the host firewall.
   and Home Assistant's ffmpeg turns it into a JPEG). Fetching it never wakes a camera. The age
   the Home app shows ("7 s") is when it last asked Home Assistant, not when the picture was
   taken.
+- **An open Home app shows the large camera tile live** (seen on a Mac): it keeps that camera
+  streaming, and a streaming camera records no motion. Close the Home app when you do not
+  watch.
 - **Opening a camera** starts a live view, which wakes the camera like any live view in Home
   Assistant: it drains the battery, stops 10 s after the last viewer and after at most
   120 s (`LIVE_IDLE_SEC`, `LIVE_MAX_SEC`). The HomeBase streams one camera at a time;

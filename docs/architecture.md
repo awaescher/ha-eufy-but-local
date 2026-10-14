@@ -25,7 +25,7 @@
 
 - `camera`: still image = latest event thumbnail (never wakes the camera), stream on demand
 - `event` "Activity": `local_recording`, `person` (cloud), `motion` (cloud)
-- `binary_sensor` "Event (local)": on for 30 s after a new local recording
+- `binary_sensor` "New recording": on for 30 s after a new local recording
 - `image` "Last event image": for notifications via `/api/image_proxy/...`
 - `sensor`: battery, last event (timestamp), stored events (diagnostic)
 - HomeBase: `alarm_control_panel` (Away/Home/Disarmed), `binary_sensor` "Local P2P connection"

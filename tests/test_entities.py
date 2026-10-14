@@ -38,7 +38,7 @@ from custom_components.eufy_but_local.const import EVENT_ACTIVE_SECONDS
 from .conftest import CAM, JPEG, STATION, TOKEN, FakeBridge, stream_token, wait_for
 
 CAMERA = "camera.front_door"
-ACTIVITY = "binary_sensor.front_door_event_local"
+ACTIVITY = "binary_sensor.front_door_new_recording"
 EVENT = "event.front_door_activity"
 LAST_EVENT = "sensor.front_door_last_event"
 COUNT = "sensor.front_door_stored_events"

@@ -7,7 +7,10 @@
         "data": {
           "host": "Host",
           "port": "Port",
-          "token": "Token (BRIDGE_TOKEN)"
+          "token": "Token"
+        },
+        "data_description": {
+          "token": "Der Wert von BRIDGE_TOKEN aus der docker-compose.yml der Brücke."
         }
       },
       "login": {
@@ -16,7 +19,10 @@
         "data": {
           "email": "E-Mail",
           "password": "Passwort",
-          "country": "Land (zweistellig, z. B. DE)"
+          "country": "Land"
+        },
+        "data_description": {
+          "country": "Zweistellig, z. B. DE."
         }
       },
       "code": {
@@ -57,7 +63,7 @@
   "entity": {
     "binary_sensor": {
       "local_activity": {
-        "name": "Ereignis (lokal)"
+        "name": "Neue Aufnahme"
       },
       "p2p_local": {
         "name": "Lokale P2P-Verbindung"
@@ -72,9 +78,9 @@
         "state_attributes": {
           "event_type": {
             "state": {
-              "local_recording": "Neue Aufnahme (lokal)",
+              "local_recording": "Neue Aufnahme",
               "person": "Person",
-              "motion": "Bewegung (Cloud)"
+              "motion": "Bewegung"
             }
           }
         }
@@ -150,7 +156,7 @@
         "state": {
           "off": "Aus",
           "infrared": "Infrarot",
-          "color": "Farbe (Strahler)"
+          "color": "Farbe"
         }
       },
       "speaker_volume": {
@@ -182,7 +188,7 @@
         "name": "Aufnahmequalität",
         "state": {
           "2k": "2K",
-          "full_hd": "Full HD (1080p)"
+          "full_hd": "1080p"
         }
       },
       "watermark": {

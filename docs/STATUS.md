@@ -80,7 +80,7 @@ Not yet verified on hardware:
 ## Verified against the simulator in a real Home Assistant (2026.10.1, `devenv/`)
 
 - Config flow: bridge -> Eufy login -> 2FA code -> entry with HomeBase and three cameras.
-- Simulated local event: event entity fires, "Event (local)" turns on, stored-events counter
+- Simulated local event: event entity fires, "New recording" turns on, stored-events counter
   and last-event image update.
 - Live view in the browser via HLS (`stream` component). go2rtc reads the raw H.264 source and
   decodes frames; a WebRTC session could not be tested under Docker Desktop (see
