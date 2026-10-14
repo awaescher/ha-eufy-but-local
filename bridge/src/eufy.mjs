@@ -9,7 +9,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 import { decodeImageV2, isV2Image } from "./image-v2.mjs";
-import { ImageStore } from "./images.mjs";
+import { ImageStore, pictureTime } from "./images.mjs";
 import { LiveStreams, isAdts } from "./live.mjs";
 import { CAMERA_PROPERTIES, HUMANS_ONLY, STATION_PROPERTIES, pick } from "./properties.mjs";
 
@@ -504,7 +504,8 @@ export class EufyConnector {
       }
       const sn = this.images.received(path, data, mime);
       if (sn && data) {
-        s.upsertCamera(sn, { imageAt: new Date().toISOString() });
+        // When the picture was taken, not when the bridge fetched it (e.g. after a restart).
+        s.upsertCamera(sn, { imageAt: pictureTime(path) ?? new Date().toISOString() });
         s.publish({ type: "image", device_sn: sn });
       }
     });

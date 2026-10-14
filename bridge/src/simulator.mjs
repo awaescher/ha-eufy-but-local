@@ -120,7 +120,7 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     rebootHUB: () => station.ack(),
     ack: () => setTimeout(() => instance?.emit("station command result", station, { command_type: 1, channel: 255, return_code: 0 }), 5),
     databaseQueryLatestInfo() {
-      const rows = cameras.map((c) => ({ device_sn: c.sn, event_count: c.count, crop_local_path: `/media/${c.sn}/${c.count}.jpg` }));
+      const rows = cameras.map((c) => ({ device_sn: c.sn, event_count: c.count, crop_local_path: thumbOf(c) }));
       setTimeout(() => instance?.emit("station database query latest", station, 0, rows), 5);
     },
     // Shape of eufy-security-client's DatabaseQueryLocal; one person recording per camera.
@@ -131,15 +131,15 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
           record_id: 1000 + i,
           station_sn: SIM_STATION,
           device_sn: c.sn,
-          history: { start_time: end, end_time: end, trigger_type: 1, storage_path: `/media/${c.sn}/${c.count}.dat`, thumb_path: `/media/${c.sn}/${c.count}.jpg` },
-          picture: [{ detection_type: 2, crop_path: `/media/${c.sn}/${c.count}.jpg`, event_time: end }],
+          history: { start_time: end, end_time: end, trigger_type: 1, storage_path: `/media/${c.sn}/${c.count}.dat`, thumb_path: thumbOf(c) },
+          picture: [{ detection_type: 2, crop_path: thumbOf(c), event_time: end }],
         }));
       setTimeout(() => instance?.emit("station database query local", station, 0, records), 5);
     },
     databaseQueryByDate(serials, start, end) {
       const records = cameras
         .filter((c) => serials.includes(c.sn))
-        .map((c, i) => ({ record_id: 2000 + i, station_sn: SIM_STATION, device_sn: c.sn, start_time: end, end_time: end, trigger_type: 1, storage_path: `/media/${c.sn}/${c.count}.dat`, thumb_path: `/media/${c.sn}/${c.count}.jpg` }));
+        .map((c, i) => ({ record_id: 2000 + i, station_sn: SIM_STATION, device_sn: c.sn, start_time: end, end_time: end, trigger_type: 1, storage_path: `/media/${c.sn}/${c.count}.dat`, thumb_path: thumbOf(c) }));
       setTimeout(() => instance?.emit("station database query by date", station, 0, records), 5);
     },
     downloadImage(path) {
@@ -152,7 +152,16 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     ...c,
     settings: { ...SIM_CAMERA_SETTINGS, ...(c.humansOnly ? { motionDetectionType: 0 } : {}) },
   }));
-  for (const c of cameras) c.reported = { ...c.settings };
+  for (const c of cameras) {
+    c.reported = { ...c.settings };
+    c.eventAt = new Date(Date.now() - 3_600_000);
+  }
+  // Like the HomeBase: the thumbnail's name holds the local time of the recording.
+  const pad = (n) => String(n).padStart(2, "0");
+  const thumbOf = (c) => {
+    const t = c.eventAt;
+    return `/media/${c.sn}/${t.getFullYear()}${pad(t.getMonth() + 1)}${pad(t.getDate())}${pad(t.getHours())}${pad(t.getMinutes())}${pad(t.getSeconds())}_c00.jpg`;
+  };
   const devices = cameras.map((c) => ({
     getSerial: () => c.sn,
     getName: () => c.name,
@@ -304,6 +313,7 @@ export function createSimulator({ tfaCode = "123456", eventIntervalSeconds = 0, 
     const cam = cameras.find((c) => c.sn === sn);
     if (!cam) throw new RangeError(`unknown camera ${sn}`);
     cam.count += 1;
+    cam.eventAt = new Date();
     const device = devices.find((d) => d.getSerial() === sn);
     setTimeout(() => instance?.emit("device person detected", device, true), 300);
   }

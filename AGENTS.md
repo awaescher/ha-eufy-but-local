@@ -124,7 +124,9 @@ docs/                   STATUS.md, architecture.md, offline-test-plan.md, adr/
 | GET | `/api/station/{sn}/events?hours=24` | diagnostics: local event records from the HomeBase database (P2P) |
 | POST | `/api/simulator/{sn}/event` | simulator only |
 
-Auth: `Authorization: Bearer <BRIDGE_TOKEN>` or `?token=` (needed for stream URLs).
+Auth: `Authorization: Bearer <BRIDGE_TOKEN>` or `?token=`. Stream and frame URLs use a
+watch-only token instead, `HMAC-SHA256(BRIDGE_TOKEN, "stream")` (first 32 hex digits), because
+Home Assistant writes stream URLs into its log; it is accepted for `GET` stream/frame only.
 
 Snapshot shape:
 

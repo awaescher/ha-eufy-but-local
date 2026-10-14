@@ -16,6 +16,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.eufy_but_local import config_flow
+from custom_components.eufy_but_local.api import BridgeClient
 from custom_components.eufy_but_local.const import CONF_TOKEN, DOMAIN
 
 TOKEN = "secret-token"
@@ -80,6 +81,10 @@ LOGGED_IN_STATE: dict[str, Any] = {
 }
 
 
+def stream_token(token: str) -> str:
+    return BridgeClient(None, "", 0, token).stream_token  # type: ignore[arg-type]
+
+
 class FakeBridge:
     """In-memory stand-in for the Node bridge with the same HTTP contract."""
 
@@ -133,7 +138,10 @@ class FakeBridge:
         if not self.token:
             return True
         header = request.headers.get("Authorization", "")
-        return header == f"Bearer {self.token}" or request.query.get("token") == self.token
+        if header == f"Bearer {self.token}" or request.query.get("token") == self.token:
+            return True
+        watch = request.path.startswith(("/api/stream/", "/api/frame/"))
+        return watch and request.query.get("token") == stream_token(self.token)
 
     @web.middleware
     async def _auth(self, request: web.Request, handler):

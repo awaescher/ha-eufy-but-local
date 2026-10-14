@@ -92,6 +92,10 @@ Not yet verified on hardware:
   unexpectedly"): with `support_audio` HomeKit's ffmpeg maps an audio track. The bridge now
   announces audio unless the camera's microphone is off; ffmpeg with HomeKit's audio mapping
   and HA's stream worker then read the FLV.
+- Thumbnail time: HomeBase thumbnail names carry the recording time
+  (`20261013112255_c00.jpg`, local time). `imageAt` used to be the download time, so after a
+  bridge restart Home Assistant showed e.g. 10:17 for a picture taken at 09:49 (seen on
+  hardware 2026-10-15); it now comes from the name.
 - Last live frame as still image: the camera entity pipes `GET /api/frame/{sn}.h264` into the
   ffmpeg of the Home Assistant 2026.10.1 image (5 s limit, one attempt per frame, failures
   logged); a 2304x1296 keyframe decodes in 40 ms. The bridge keeps a frame only once it has
@@ -107,7 +111,7 @@ Not yet verified on hardware:
 
 | Suite | Result | Notes |
 |---|---|---|
-| `bridge`: `npm test` | 102 passing | ~97 % line coverage (node built-in coverage) |
+| `bridge`: `npm test` | 104 passing | ~97 % line coverage (node built-in coverage) |
 | `tests/test_config_flow.py` | 16 passing | |
 | `tests/test_init.py` | 12 passing | |
 | `tests/test_entities.py` | 20 passing | |
@@ -155,8 +159,9 @@ device `eufy-local-bridge` so existing sessions need no new 2FA code.
   frames, no ADTS header; the library's codec name is logged from 0.1.8 on). The stream
   announced audio but carried none, so HomeKit's ffmpeg never showed a picture for them
   (Häusle: no picture for 115 s, "Timeout while waiting of FFmpeg"). The bridge now sends
-  silence in their place and keeps 300 frames in `DATA_DIR/audio-samples/` to work out the
-  format; their live view has no sound until then. Verified on hardware (2026-10-15, 0.1.8):
+  silence in their place and keeps 300 frames in `DATA_DIR/audio-samples/`. Format worked out
+  (2026-10-15): raw AAC-ELD, 16 kHz, 480 samples per frame (33.2 frames/s measured), which
+  ffmpeg cannot decode; their live view stays silent (BACKLOG.md item 1). Verified on hardware (2026-10-15, 0.1.8):
   all seven cameras showed their live view in the Home app, without the HA UI open; only
   Wärmepumpe (weak Wi-Fi) needed a second try.
 - The HomeBase streams one camera at a time. Several live views at once (e.g. dashboard cards

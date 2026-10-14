@@ -1,6 +1,19 @@
 // Event thumbnails fetched from the HomeBase's local event database.
 // Downloads are serialized: the station answers one request at a time.
 
+/**
+ * When the picture was taken, from a HomeBase thumbnail path such as
+ * `/media/mmcblk0p1/Camera00/20261013112255_c00.jpg` (HomeBase local time, taken to be the
+ * bridge's time zone); null if the name has no time stamp.
+ */
+export function pictureTime(path) {
+  const m = /(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_c\d+\.\w+$/.exec(String(path ?? ""));
+  if (!m) return null;
+  const [y, mo, d, h, mi, s] = m.slice(1).map(Number);
+  const date = new Date(y, mo - 1, d, h, mi, s);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 export class ImageStore {
   /**
    * @param {object} opts

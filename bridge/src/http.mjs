@@ -20,7 +20,7 @@
 //   POST /api/simulator/:sn/event        simulator only: trigger an event
 
 import http from "node:http";
-import { timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { FlvMuxer } from "./flv.mjs";
 import { boundBacklog } from "./live.mjs";
@@ -29,6 +29,14 @@ import { TsMuxer } from "./mpegts.mjs";
 const MAX_BODY_BYTES = 64 * 1024;
 const STATE_DEBOUNCE_MS = 200;
 const KEEPALIVE_MS = 25_000;
+
+/**
+ * Token for stream and frame URLs, derived from the bridge token. Home Assistant logs stream
+ * URLs (e.g. on stream errors); this token only lets someone watch, not use the API.
+ */
+export function streamToken(token) {
+  return token ? createHmac("sha256", token).update("stream").digest("hex").slice(0, 32) : "";
+}
 
 export function createApi({ state, connector, credentials, simulator = null, token = "", log = () => {} }) {
   const sse = new Set();
@@ -51,13 +59,19 @@ export function createApi({ state, connector, credentials, simulator = null, tok
   const keepalive = setInterval(() => { for (const res of sse) res.write(": ping\n\n"); }, KEEPALIVE_MS);
   keepalive.unref();
 
-  const authorized = (req, url) => {
-    if (!token) return true;
-    const given = (req.headers.authorization ?? "").replace(/^Bearer /, "") || url.searchParams.get("token") || "";
+  const watchToken = streamToken(token);
+  const matches = (given, expected) => {
     const a = Buffer.from(given);
-    const b = Buffer.from(token);
+    const b = Buffer.from(expected);
     return a.length === b.length && timingSafeEqual(a, b);
   };
+  const authorized = (req, url, route) => {
+    if (!token) return true;
+    const given = (req.headers.authorization ?? "").replace(/^Bearer /, "") || url.searchParams.get("token") || "";
+    if (matches(given, token)) return true;
+    return (route === "stream" || route === "frame") && req.method === "GET" && matches(given, watchToken);
+  };
+
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://bridge");
@@ -66,7 +80,7 @@ export function createApi({ state, connector, credentials, simulator = null, tok
     if (route === "health") {
       return send(res, 200, { ok: true, version: state.version, phase: state.phase, auth: Boolean(token), simulator: Boolean(simulator) });
     }
-    if (!authorized(req, url)) return send(res, 401, { error: "unauthorized" });
+    if (!authorized(req, url, route)) return send(res, 401, { error: "unauthorized" });
 
     try {
       const handler = routes[`${req.method} ${route}`];

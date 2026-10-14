@@ -7,7 +7,7 @@ import { describe, it, mock } from "node:test";
 import { readConfig } from "../src/config.mjs";
 import { CredentialStore } from "../src/credentials.mjs";
 import { findSpsOffset } from "../src/h264.mjs";
-import { ImageStore } from "../src/images.mjs";
+import { ImageStore, pictureTime } from "../src/images.mjs";
 import { LiveStreams, SILENT_AAC, adtsDurationMs, boundBacklog, describeAudio } from "../src/live.mjs";
 import { splitFrames } from "../src/simulator.mjs";
 import { BridgeState } from "../src/state.mjs";
@@ -110,6 +110,14 @@ describe("BridgeState", () => {
     s.publish({ type: "local_recording", device_sn: "C1" });
     assert.equal(evt.type, "local_recording");
     assert.ok(Date.parse(evt.at));
+  });
+});
+
+describe("pictureTime", () => {
+  it("reads the recording time from the HomeBase thumbnail name (local time)", () => {
+    assert.equal(pictureTime("/media/mmcblk0p1/Camera00/20261013112255_c00.jpg"), new Date(2026, 9, 13, 11, 22, 55).toISOString());
+    assert.equal(pictureTime("/media/x/120.jpg"), null);
+    assert.equal(pictureTime(undefined), null);
   });
 });
 

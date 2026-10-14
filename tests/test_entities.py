@@ -35,7 +35,7 @@ from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 from custom_components.eufy_but_local.camera import h264_to_jpeg
 from custom_components.eufy_but_local.const import EVENT_ACTIVE_SECONDS
 
-from .conftest import CAM, JPEG, STATION, TOKEN, FakeBridge, wait_for
+from .conftest import CAM, JPEG, STATION, TOKEN, FakeBridge, stream_token, wait_for
 
 CAMERA = "camera.front_door"
 ACTIVITY = "binary_sensor.front_door_event_local"
@@ -216,9 +216,14 @@ async def test_h264_to_jpeg(tmp_path) -> None:
         assert await h264_to_jpeg(slow, b"frame") == (None, "no picture within 0.2 s")
 
 
-async def test_stream_source_carries_token(hass: HomeAssistant, bridge: FakeBridge) -> None:
+async def test_stream_source_carries_only_the_watch_token(
+    hass: HomeAssistant, bridge: FakeBridge
+) -> None:
     source = await async_get_stream_source(hass, CAMERA)
-    assert source == f"http://127.0.0.1:{bridge.port}/api/stream/{CAM}.flv?token={TOKEN}"
+    assert (
+        source == f"http://127.0.0.1:{bridge.port}/api/stream/{CAM}.flv?token={stream_token(TOKEN)}"
+    )
+    assert TOKEN not in source
 
 
 async def test_streaming_state(hass: HomeAssistant, bridge: FakeBridge) -> None:

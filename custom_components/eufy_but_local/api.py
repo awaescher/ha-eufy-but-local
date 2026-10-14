@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+import hashlib
+import hmac
 import json
 import logging
 from typing import Any
@@ -44,6 +46,13 @@ class BridgeClient:
         if with_token and self._token:
             url += f"?token={self._token}"
         return url
+
+    @property
+    def stream_token(self) -> str:
+        """Watch-only token for stream URLs, which Home Assistant writes into its log."""
+        if not self._token:
+            return ""
+        return hmac.new(self._token.encode(), b"stream", hashlib.sha256).hexdigest()[:32]
 
     async def _request(
         self,
@@ -117,7 +126,8 @@ class BridgeClient:
 
     def stream_url(self, device_sn: str) -> str:
         """FLV with video and audio, timestamped by the bridge (ADR 0013)."""
-        return self.url(f"/api/stream/{device_sn}.flv", with_token=True)
+        url = self.url(f"/api/stream/{device_sn}.flv")
+        return f"{url}?token={self.stream_token}" if self._token else url
 
     async def frame(self, device_sn: str) -> bytes | None:
         """Latest live keyframe as raw H.264, or None; never starts the camera."""

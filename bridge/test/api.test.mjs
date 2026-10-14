@@ -12,7 +12,7 @@ import { readConfig } from "../src/config.mjs";
 import { CredentialStore } from "../src/credentials.mjs";
 import { EufyConnector } from "../src/eufy.mjs";
 import { findSpsOffset } from "../src/h264.mjs";
-import { createApi } from "../src/http.mjs";
+import { createApi, streamToken } from "../src/http.mjs";
 import { createSimulator, SIM_CAMERAS, SIM_STATION } from "../src/simulator.mjs";
 import { BridgeState } from "../src/state.mjs";
 
@@ -140,6 +140,9 @@ describe("bridge API (simulated HomeBase)", () => {
     const bytes = new Uint8Array(await res.arrayBuffer());
     assert.deepEqual([...bytes.slice(0, 2)], [0xff, 0xd8]);
     assert.equal((await b.api("/api/image/UNKNOWN")).status, 404);
+    // The time the picture was taken (from its name; the simulator's is an hour old), not
+    // when the bridge fetched it.
+    assert.ok(Date.now() - Date.parse(b.state.cameras[CAM].imageAt) > 50 * 60_000);
   });
 
   it("decodes v2 thumbnails before serving them", async () => {
@@ -376,6 +379,15 @@ describe("bridge API (simulated HomeBase)", () => {
     const events = await readEvents(res, (e) => e.name === "event" && e.data.type === "person");
     assert.deepEqual(events.at(-1).data.source, "local");
     assert.equal(events.at(-1).data.device_sn, humans);
+  });
+
+  it("accepts the watch-only token for streams and frames, nothing else", async () => {
+    const watch = streamToken(TOKEN);
+    const noAuth = (path) => fetch(`${b.base}${path}`);
+    assert.equal((await noAuth(`/api/frame/${CAM}.h264?token=${watch}`)).status, 200);
+    assert.equal((await noAuth(`/api/state?token=${watch}`)).status, 401);
+    assert.equal((await noAuth(`/api/stream/${CAM}.flv?token=wrong`)).status, 401);
+    assert.equal(streamToken(""), "");
   });
 
   it("rejects streams for unknown cameras", async () => {

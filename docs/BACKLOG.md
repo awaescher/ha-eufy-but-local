@@ -5,28 +5,14 @@ Things worth doing, roughly in priority order. What is verified and what is not 
 
 ## Livestream
 
-1. **Real audio for the older eufyCam 2C (T8113 without "-V").** They send raw AAC-ELD access
-   units (no ADTS header, 118–171 bytes; the first byte is the global gain, the second is
-   almost always `0x7a`). The library says AAC_ELD; its codec name is not reliable otherwise
-   (it also said AAC_ELD for Haustüre and Wärmepumpe, whose frames are ADTS AAC-LC). The bridge
-   sends silence instead so HomeKit shows the picture (verified on hardware 2026-10-15).
-   Findings from a 300-frame sample of Häusle (2026-10-15):
-   - ffmpeg 8.1.2 (Home Assistant image) decodes the frames as AAC-ELD (object type 39,
-     mono, no data resilience, no LD-SBR) without errors and the
-     spectrogram shows real sound, but only for sample rates it has 480/512-sample band
-     tables for (22.05 kHz and up). For 16 and 8 kHz it fails with "Internal bug" (empty
-     `ff_aac_num_swb_480/512` entries in `decode_ics_info`).
-   - The 300 frames arrived in at most 7.9 s, so at least 38 frames/s: at least 19 kHz with
-     512 samples per frame. The bridge logs the arrival rate from 0.1.10 on
-     (`unsupported audio arrives at … frames/s`); that settles the sample rate
-     (rate = frames/s × 480 or 512).
-   - Passing ELD through as is would be risky even with the right rate: Home Assistant's HLS
-     would put ELD into fMP4, which browsers may not play; WebRTC (go2rtc → Opus) and HomeKit
-     (ffmpeg → Opus) transcode and would probably work.
-   Next steps: read the frame rate from the log; build the AudioSpecificConfig from it; test
-   ELD in FLV against HA's stream worker in a browser, go2rtc and HomeKit. If HLS breaks,
-   transcoding to AAC-LC needs ffmpeg in the bridge image (a new dependency: maintainer
-   decision and an ADR).
+1. **Real audio for the older eufyCam 2C (T8113 without "-V") – parked.** They send raw AAC-ELD
+   access units (no ADTS header, 118–171 bytes; first byte = global gain, second almost
+   always `0x7a`). Measured on hardware (2026-10-15): 33.2 frames/s, i.e. 16 kHz with 480
+   samples per frame. ffmpeg (8.1.2 in the Home Assistant image) has no AAC-ELD band tables
+   for 16 kHz (empty `ff_aac_num_swb_480` entry; "Internal bug" in `decode_ics_info`), so no
+   consumer could decode it. Maintainer decision: no extra software (no ffmpeg in the bridge)
+   for this; the bridge sends silence so the picture works. Revisit if ffmpeg gains 16 kHz
+   ELD support (then: AudioSpecificConfig for ELD, 16 kHz, 480 samples, carried in FLV).
 2. **Verify on hardware** what is only verified against the simulator: the start watchdog
    (a restart after a weak-Wi-Fi stop brought no stream and hung until 0.1.9), still image
    from the last live frame (Home app tiles).

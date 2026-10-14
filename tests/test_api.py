@@ -182,7 +182,12 @@ async def test_missing_image_is_none_but_auth_errors_propagate(raw: RawServer, c
 async def test_urls(session: aiohttp.ClientSession) -> None:
     with_token = BridgeClient(session, "192.168.1.10", 3080, "tok")
     without = BridgeClient(session, "192.168.1.10", 3080, None)
-    assert with_token.stream_url("CAM") == "http://192.168.1.10:3080/api/stream/CAM.flv?token=tok"
+    # Watch-only token: HMAC-SHA256("tok", "stream"), first 32 hex digits; same as the bridge.
+    assert with_token.stream_token == "259165c6bd815926492a664ac5faa34c"
+    assert (
+        with_token.stream_url("CAM")
+        == f"http://192.168.1.10:3080/api/stream/CAM.flv?token={with_token.stream_token}"
+    )
     assert without.stream_url("CAM") == "http://192.168.1.10:3080/api/stream/CAM.flv"
     assert with_token.captcha_url() == "http://192.168.1.10:3080/api/captcha?token=tok"
 
