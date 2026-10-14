@@ -107,7 +107,7 @@ Not yet verified on hardware:
 
 | Suite | Result | Notes |
 |---|---|---|
-| `bridge`: `npm test` | 100 passing | ~97 % line coverage (node built-in coverage) |
+| `bridge`: `npm test` | 102 passing | ~97 % line coverage (node built-in coverage) |
 | `tests/test_config_flow.py` | 16 passing | |
 | `tests/test_init.py` | 12 passing | |
 | `tests/test_entities.py` | 20 passing | |
@@ -145,15 +145,20 @@ device `eufy-local-bridge` so existing sessions need no new 2FA code.
   stream (restart, 409); whether those are gone too is open. Not reported upstream (ADR 0012).
 - Cameras with weak Wi-Fi (Hof -80 dBm, Wärmepumpe -81 dBm): confirmed on hardware
   (2026-10-14) that the library stopped Hof's stream after 11 s because no data came for 5 s.
-  The bridge now restarts a stream the HomeBase stopped on its own while someone watches (at
-  most twice per session, not at the maximum duration); not yet seen on hardware.
+  The bridge restarts a stream the HomeBase stopped on its own while someone watches (at most
+  twice per session, not at the maximum duration). On hardware (2026-10-15, Wärmepumpe) the
+  restart was triggered, but the restarted stream sent no data, and the library reports no
+  end for a stream that never started: the camera stayed "starting" and its viewers hung.
+  A start watchdog now retries or gives up after 15 s; not yet seen on hardware.
 - Audio formats (2026-10-15): T8113-V and T8142 send AAC-LC 16 kHz mono as ADTS. The three
   T8113 without "-V" (Häusle, Kellereingang, Terrasse) send something else (130–144 byte
   frames, no ADTS header; the library's codec name is logged from 0.1.8 on). The stream
   announced audio but carried none, so HomeKit's ffmpeg never showed a picture for them
   (Häusle: no picture for 115 s, "Timeout while waiting of FFmpeg"). The bridge now sends
   silence in their place and keeps 300 frames in `DATA_DIR/audio-samples/` to work out the
-  format; their live view has no sound until then.
+  format; their live view has no sound until then. Verified on hardware (2026-10-15, 0.1.8):
+  all seven cameras showed their live view in the Home app, without the HA UI open; only
+  Wärmepumpe (weak Wi-Fi) needed a second try.
 - The HomeBase streams one camera at a time. Several live views at once (e.g. dashboard cards
   in live mode plus the Home app) displace each other; a displaced camera is refused for 45 s
   (30 s let Home Assistant's retry of a camera nobody watched any more take the HomeBase back

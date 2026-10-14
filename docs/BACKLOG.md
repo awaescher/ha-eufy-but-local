@@ -7,8 +7,10 @@ Things worth doing, roughly in priority order. What is verified and what is not 
 
 1. **Real audio for the older eufyCam 2C (T8113 without "-V").** They send audio frames without
    ADTS headers (130–144 bytes, first bytes e.g. `717a…`, `707a…`, `7a79…`); the library reports
-   a codec from 0.1.8 on (log line `livestream … running (…, with audio, <codec>)`), probably
-   AAC-ELD. The bridge sends silence instead so HomeKit shows the picture. Next steps:
+   AAC_ELD for them. Its codec name is not reliable: it also said AAC_ELD for Haustüre and
+   Wärmepumpe, whose frames are ADTS AAC-LC, and those cameras sent a few non-ADTS chunks
+   before their first keyframe. The bridge sends silence instead so HomeKit shows the
+   picture (verified on hardware 2026-10-15). Next steps:
    - take a sample from `DATA_DIR/audio-samples/<serial>.bin` (2-byte big-endian length +
      frame, 300 frames; it stays on the maintainer's host, never commit it);
    - work out the format (try ffmpeg with AAC-ELD AudioSpecificConfigs for 16 kHz mono, frame
@@ -17,8 +19,8 @@ Things worth doing, roughly in priority order. What is verified and what is not 
      signal any AAC object type; ADTS cannot signal ELD), and check that Home Assistant's
      stream worker, go2rtc and HomeKit's ffmpeg (`-c:a libopus`) accept it;
    - otherwise transcode in the bridge only if it needs no new runtime dependency (AGENTS.md).
-2. **Verify on hardware** what is only verified against the simulator: automatic restart of
-   a stream the HomeBase stopped (weak Wi-Fi, Hof), silence for non-ADTS audio, still image
+2. **Verify on hardware** what is only verified against the simulator: the start watchdog
+   (a restart after a weak-Wi-Fi stop brought no stream and hung until 0.1.9), still image
    from the last live frame (Home app tiles).
 3. **HomeKit and 2K streams.** Hof sometimes streams 2304x1296; with `video_codec: copy` the
    Home app gets a resolution it does not offer. Check whether that is why HomeKit's ffmpeg

@@ -62,6 +62,10 @@ const FRAME_NOTIFY_MS = 10_000;
 // The library stops a stream after 5 s without data (weak Wi-Fi, seen on hardware). While
 // someone watches, the bridge starts it again this often per session instead of ending them.
 const MAX_RESTARTS = 2;
+// A start that brings no stream within this time is given up (or retried). Waking a camera
+// with weak Wi-Fi took up to 9 s on hardware. The library reports no end for a stream that
+// never started, so without this the camera stayed "starting" and accepted no new start.
+const START_TIMEOUT_MS = 15_000;
 
 /**
  * Returns `accept(unit)`, which drops a slow viewer's units while its unsent data (`pending()`)
@@ -95,6 +99,7 @@ export class LiveStreams {
    * @param {(sn: string, at: string) => void} [opts.onFrame] a newer still frame is available
    * @param {(sn: string) => string} [opts.nameOf]       camera name for log lines
    * @param {number} [opts.maxMs]                        the library's maximum stream duration
+   * @param {number} [opts.startTimeoutMs]               give up a start that brings no stream
    * @param {() => number} [opts.now]
    */
   constructor({
@@ -108,6 +113,7 @@ export class LiveStreams {
     onFrame = () => {},
     nameOf = (sn) => sn,
     maxMs = Infinity,
+    startTimeoutMs = START_TIMEOUT_MS,
     now = () => Date.now(),
   }) {
     this.startFn = start;
@@ -120,6 +126,7 @@ export class LiveStreams {
     this.onFrame = onFrame;
     this.nameOf = nameOf;
     this.maxMs = maxMs;
+    this.startTimeoutMs = startTimeoutMs;
     this.now = now;
     this.streams = new Map();
     this.displacedAt = new Map(); // sn -> time another camera of its station took over
@@ -141,6 +148,11 @@ export class LiveStreams {
   /** Whether the running stream of `sn` carries audio (known once it started). */
   hasAudio(sn) {
     return this.streams.get(sn)?.audio ?? false;
+  }
+
+  /** Whether the running stream's audio is replaced by silence (format not supported). */
+  silenced(sn) {
+    return this.streams.get(sn)?.silenced ?? false;
   }
 
   /** Frame rate the camera reported when the stream started. */
@@ -179,12 +191,31 @@ export class LiveStreams {
   }
 
   async #start(sn) {
+    const s = this.streams.get(sn);
+    clearTimeout(s.startTimer);
+    s.startTimer = setTimeout(() => this.#startTimedOut(sn), this.startTimeoutMs);
+    s.startTimer.unref?.();
     try {
       await this.startFn(sn);
     } catch (err) {
       this.log(`livestream start failed for ${sn}: ${err.message}`);
       this.ended(sn);
     }
+  }
+
+  #startTimedOut(sn) {
+    const s = this.streams.get(sn);
+    if (!s?.starting) return;
+    this.log(`livestream ${this.nameOf(sn)} did not start within ${Math.round(this.startTimeoutMs / 1000)} s`);
+    this.stopFn(sn).catch(() => {});
+    if (s.viewers.size > 0 && s.restarts < MAX_RESTARTS) {
+      s.restarts += 1;
+      this.log(`livestream ${this.nameOf(sn)}: trying again for its viewers (${s.restarts}/${MAX_RESTARTS})`);
+      s.requestedAt = this.now();
+      this.#start(sn);
+      return;
+    }
+    this.ended(sn);
   }
 
   /**
@@ -251,6 +282,7 @@ export class LiveStreams {
     const s = this.#get(sn);
     s.session = (s.session ?? 0) + 1;
     s.restarting = false;
+    clearTimeout(s.startTimer);
     s.audio = audio;
     s.fps = fps > 0 ? fps : 15;
     // P2P delivers frames in bursts; timestamps must still advance for every frame.
@@ -261,6 +293,7 @@ export class LiveStreams {
     s.firstVideoAt = null;
     s.firstKeyframeAt = null;
     s.audioLogged = false;
+    s.silenced = false;
     s.maxLeadMs = 0;
     s.skips = 0;
     s.frameNotifiedAt = null;
@@ -306,6 +339,7 @@ export class LiveStreams {
     }
     // Some cameras (older eufyCam 2C) send audio in a format the bridge cannot pass on yet.
     // HomeKit's ffmpeg needs an audio track, so silence keeps pace with the camera's audio.
+    s.silenced = true;
     const now = this.now();
     while (s.lastAudioAt === null || s.lastAudioAt + SILENT_AAC_MS <= now) this.#pushAudio(sn, s, SILENT_AAC);
   }
@@ -381,6 +415,7 @@ export class LiveStreams {
     s.gop = [];
     s.gopBytes = 0;
     clearTimeout(s.idleTimer);
+    clearTimeout(s.startTimer);
     for (const v of s.viewers) v.end();
     s.viewers.clear();
     if (wasRunning) this.onChange(sn, false);

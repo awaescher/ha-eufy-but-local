@@ -315,6 +315,17 @@ describe("LiveStreams", () => {
     assert.equal(adtsDurationMs(Buffer.from([1, 2, 3, 4, 5, 6, 7])), null);
   });
 
+  it("gives up a first start that brings no stream", async () => {
+    const { live, calls } = make({ startTimeoutMs: 10 });
+    const v = new Sink();
+    await live.addViewer("C1", v);
+    await new Promise((r) => setTimeout(r, 80));
+    assert.equal(v.ended, true);
+    assert.equal(calls.start.length, 3, "first start plus two tries");
+    await live.addViewer("C1", new Sink());
+    assert.equal(calls.start.length, 4);
+  });
+
   it("cleans up when starting fails", async () => {
     const { live } = make({ start: async () => { throw new Error("camera asleep"); } });
     const v = new Sink();
@@ -384,6 +395,20 @@ describe("LiveStreams", () => {
       idle.live.interrupted("C1", idle.session);
       assert.deepEqual(idle.calls.start, ["C1"]);
       assert.deepEqual(idle.calls.change.at(-1), ["C1", false]);
+    });
+
+    it("tries again when a restart brings no stream, and gives up after that", async () => {
+      const { live, calls, v, session, logs } = await running({ startTimeoutMs: 10 });
+      live.interrupted("C1", session); // restart 1/2
+      await new Promise((r) => setTimeout(r, 25)); // no stream: try again (2/2), then give up
+      await new Promise((r) => setTimeout(r, 25));
+      assert.deepEqual(calls.start, ["C1", "C1", "C1"]);
+      assert.ok(calls.stop.length >= 2, "the hanging start is stopped");
+      assert.ok(logs.some((l) => l.includes("did not start within 0 s")));
+      assert.equal(v.ended, true);
+      assert.deepEqual(calls.change.at(-1), ["C1", false]);
+      await live.addViewer("C1", new Sink());
+      assert.equal(calls.start.length, 4, "a new viewer can start the camera again");
     });
 
     it("ends the viewers when the restart fails", async () => {

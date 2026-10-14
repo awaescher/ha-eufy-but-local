@@ -302,6 +302,8 @@ describe("EufyConnector", () => {
       const audio = new EventEmitter();
       const meta = { videoCodec: 0, videoFPS: 15, videoWidth: 1920, videoHeight: 1080, audioCodec: 3 };
       clients[0].emit("station livestream start", station(), camera("C1"), meta, new EventEmitter(), audio);
+      audio.emit("data", Buffer.from([0x70, 0x00])); // before the first keyframe: not kept
+      connector.live.feed("C1", Buffer.from([0, 0, 0, 1, 0x67, 0x42, 0, 0, 0, 1, 0x65, 0x88]));
       audio.emit("data", Buffer.from([0x71, 0x7a, 0x01]));
       audio.emit("data", Buffer.from([0xff, 0xf1, 0x60, 0x40, 0x18, 0x02, 0x40])); // ADTS: not kept
       audio.emit("data", Buffer.from([0x7a, 0x79]));

@@ -530,7 +530,7 @@ export class EufyConnector {
       if (hasAudio) {
         audio.on("data", (chunk) => {
           this.live.feedAudio(sn, chunk);
-          if (!isAdts(chunk)) this.#keepAudioSample(sn, chunk);
+          if (!isAdts(chunk) && this.live.silenced(sn)) this.#keepAudioSample(sn, chunk);
         });
       }
     });
