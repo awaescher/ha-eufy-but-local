@@ -1,7 +1,8 @@
 # AGENTS.md
 
 Guidance for coding agents (Claude Code, Codex, …) working on this repository.
-Read this file, then `docs/STATUS.md` (current state and open work), then the ADRs in `docs/adr/`.
+Read this file, then `docs/STATUS.md` (current state), `docs/BACKLOG.md` (open work), then the
+ADRs in `docs/adr/`.
 
 ## What this project is
 

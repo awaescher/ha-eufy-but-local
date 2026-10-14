@@ -119,6 +119,8 @@ Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line cove
 
 ## Open work, in priority order
 
+The full list lives in [BACKLOG.md](BACKLOG.md).
+
 1. Verify HA's built-in go2rtc (WebRTC) with the raw H.264 source. The `stream` component
    (HLS) works against the simulator once the camera sets `use_wallclock_as_timestamps`
    (ADR 0006, `devenv/stream_probe.py`). If go2rtc fails, serve MPEG-TS or fMP4 instead.
