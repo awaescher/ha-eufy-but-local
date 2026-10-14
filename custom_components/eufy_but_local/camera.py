@@ -1,10 +1,11 @@
-"""Cameras: still image from the HomeBase event database, live view via P2P."""
+"""Cameras: still image from the HomeBase or the last live view, live view via P2P."""
 
 from __future__ import annotations
 
 from datetime import timedelta
 
 from homeassistant.components.camera import Camera, CameraEntityFeature
+from homeassistant.components.ffmpeg import async_get_image
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -32,7 +33,8 @@ class EufyLocalCamera(EufyCameraEntity, Camera):
         EufyCameraEntity.__init__(self, coordinator, device_sn, "camera")
         Camera.__init__(self)
         self._image: bytes | None = None
-        self._image_at: str | None = None
+        # ("event", imageAt) or ("frame", frameAt): what `_image` shows.
+        self._image_key: tuple[str, str | None] | None = None
 
     @property
     def model(self) -> str | None:
@@ -49,12 +51,26 @@ class EufyLocalCamera(EufyCameraEntity, Camera):
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
-        """Thumbnail of the latest event. Never wakes the battery-powered camera."""
+        """The newer of the latest event thumbnail and the last live frame.
+
+        Never wakes the battery-powered camera: both come from what the bridge already has.
+        """
+        frame_at = self.cam.get("frameAt")
         image_at = self.cam.get("imageAt")
-        if self._image is None or image_at != self._image_at:
+        if frame_at and (image_at is None or frame_at > image_at):
+            if self._image_key != ("frame", frame_at):
+                # The bridge keeps the frame as H.264; ffmpeg turns it into a JPEG.
+                image = await async_get_image(
+                    self.hass, self.coordinator.client.frame_url(self.device_sn)
+                )
+                if image:
+                    self._image, self._image_key = image, ("frame", frame_at)
+            if self._image_key == ("frame", frame_at):
+                return self._image
+        if self._image is None or self._image_key != ("event", image_at):
             image = await self.coordinator.client.image(self.device_sn)
             if image:
-                self._image, self._image_at = image, image_at
+                self._image, self._image_key = image, ("event", image_at)
         return self._image
 
     async def async_snooze(self, duration: timedelta) -> None:
@@ -62,7 +78,7 @@ class EufyLocalCamera(EufyCameraEntity, Camera):
         await self._command("snooze", max(1, int(duration.total_seconds())))
 
     async def stream_source(self) -> str | None:
-        """MPEG-TS (video + audio) from the bridge; opening it wakes the camera."""
+        """FLV (video + audio) from the bridge; opening it wakes the camera."""
         if not self.p2p_connected:
             return None
         return self.coordinator.client.stream_url(self.device_sn)

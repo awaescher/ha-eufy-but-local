@@ -9,6 +9,10 @@
 // displaces the running one; the displaced camera is then refused for a while, because
 // clients like Home Assistant reconnect on their own and would displace the new camera
 // right back.
+//
+// Like the Eufy app, the bridge keeps delay bounded: a viewer that cannot keep up skips to the
+// next keyframe (`boundBacklog`) instead of falling further behind. The latest keyframe of each
+// camera is kept after the stream ended, as a still image of what the camera saw last.
 
 import { findSpsOffset } from "./h264.mjs";
 
@@ -28,6 +32,29 @@ export function adtsDurationMs(chunk) {
 }
 // Home Assistant stops an unwatched stream after 30 s (stream OUTPUT_IDLE_TIMEOUT).
 const SWITCH_COOLDOWN_MS = 30_000;
+// A few seconds of video at the bitrates seen so far; above this a viewer is too far behind.
+export const MAX_VIEWER_BACKLOG_BYTES = 512 * 1024;
+// How often a running stream reports a newer still frame; Apple Home asks about every 10 s.
+const FRAME_NOTIFY_MS = 10_000;
+
+/**
+ * Returns `accept(unit)`, which drops a slow viewer's units while its unsent data (`pending()`)
+ * exceeds `maxBytes`, and resumes at the next keyframe once it caught up.
+ */
+export function boundBacklog(pending, { maxBytes = MAX_VIEWER_BACKLOG_BYTES, onSkip = () => {} } = {}) {
+  let skipping = false;
+  return (unit) => {
+    if (!skipping && pending() <= maxBytes) return true;
+    if (!skipping) {
+      skipping = true;
+      onSkip();
+      return false;
+    }
+    if (!unit.keyframe || pending() > maxBytes) return false;
+    skipping = false;
+    return true;
+  };
+}
 
 export class LiveStreams {
   /**
@@ -39,6 +66,8 @@ export class LiveStreams {
    * @param {(msg: string) => void} [opts.log]
    * @param {(sn: string) => string} [opts.stationOf]   station serial of a camera
    * @param {number} [opts.switchCooldownMs]             how long a displaced camera is refused
+   * @param {(sn: string, at: string) => void} [opts.onFrame] a newer still frame is available
+   * @param {(sn: string) => string} [opts.nameOf]       camera name for log lines
    * @param {() => number} [opts.now]
    */
   constructor({
@@ -49,6 +78,8 @@ export class LiveStreams {
     log = () => {},
     stationOf = (sn) => sn,
     switchCooldownMs = SWITCH_COOLDOWN_MS,
+    onFrame = () => {},
+    nameOf = (sn) => sn,
     now = () => Date.now(),
   }) {
     this.startFn = start;
@@ -58,6 +89,8 @@ export class LiveStreams {
     this.log = log;
     this.stationOf = stationOf;
     this.switchCooldownMs = switchCooldownMs;
+    this.onFrame = onFrame;
+    this.nameOf = nameOf;
     this.now = now;
     this.streams = new Map();
     this.displacedAt = new Map(); // sn -> time another camera of its station took over
@@ -79,6 +112,11 @@ export class LiveStreams {
   /** Whether the running stream of `sn` carries audio (known once it started). */
   hasAudio(sn) {
     return this.streams.get(sn)?.audio ?? false;
+  }
+
+  /** Frame rate the camera reported when the stream started. */
+  fps(sn) {
+    return this.streams.get(sn)?.fps ?? 15;
   }
 
   viewerCount(sn) {
@@ -103,6 +141,7 @@ export class LiveStreams {
     }
     if (s.starting) return;
     s.starting = true;
+    s.requestedAt = this.now();
     this.displacedAt.delete(sn);
     await this.#displaceOthers(sn);
     try {
@@ -124,6 +163,17 @@ export class LiveStreams {
     }
   }
 
+  /** The latest keyframe (SPS/PPS + IDR) of `sn` with its time, also after the stream ended. */
+  lastFrame(sn) {
+    return this.streams.get(sn)?.lastFrame ?? null;
+  }
+
+  /** Counts a viewer that fell behind and skipped to the next keyframe. */
+  skipped(sn) {
+    const s = this.streams.get(sn);
+    if (s) s.skips = (s.skips ?? 0) + 1;
+  }
+
   removeViewer(sn, viewer) {
     const s = this.streams.get(sn);
     if (!s) return;
@@ -141,10 +191,17 @@ export class LiveStreams {
   started(sn, { audio = false, fps = 15 } = {}) {
     const s = this.#get(sn);
     s.audio = audio;
+    s.fps = fps > 0 ? fps : 15;
     // P2P delivers frames in bursts; timestamps must still advance for every frame.
     s.minVideoStepMs = 500 / (fps > 0 ? fps : 15);
     s.lastVideoAt = null;
     s.lastAudioAt = null;
+    s.startedAt = this.now();
+    s.firstVideoAt = null;
+    s.firstKeyframeAt = null;
+    s.maxLeadMs = 0;
+    s.skips = 0;
+    s.frameNotifiedAt = null;
     s.running = true;
     s.starting = false;
     s.gop = [];
@@ -159,6 +216,8 @@ export class LiveStreams {
     const now = this.now();
     const at = s.lastVideoAt === null ? now : Math.max(now, s.lastVideoAt + s.minVideoStepMs);
     s.lastVideoAt = at;
+    s.maxLeadMs = Math.max(s.maxLeadMs ?? 0, at - now);
+    s.firstVideoAt ??= now;
     const sps = findSpsOffset(chunk);
     const unit = sps >= 0
       ? { kind: "video", data: chunk.subarray(sps), at, keyframe: true }
@@ -184,6 +243,7 @@ export class LiveStreams {
     if (unit.keyframe) {
       s.gop = [unit];
       s.gopBytes = unit.data.length;
+      this.#keyframe(sn, s, unit);
     } else if (s.gop.length > 0 && s.gopBytes < GOP_CACHE_MAX_BYTES) {
       s.gop.push(unit);
       s.gopBytes += unit.data.length;
@@ -191,11 +251,32 @@ export class LiveStreams {
     for (const v of s.viewers) v.push(unit);
   }
 
+  #keyframe(sn, s, unit) {
+    const now = this.now();
+    s.lastFrame = { data: unit.data, at: new Date(now).toISOString() };
+    if (s.firstKeyframeAt == null) {
+      s.firstKeyframeAt = now;
+      // Where the start-up time goes: waking the camera vs. waiting for a keyframe.
+      const since = (t) => (t == null || s.requestedAt == null ? "?" : `${t - s.requestedAt} ms`);
+      this.log(`livestream ${this.nameOf(sn)}: started after ${since(s.startedAt)}, first frame after ${since(s.firstVideoAt)}, first keyframe after ${since(now)}`);
+    }
+    if (s.frameNotifiedAt == null || now - s.frameNotifiedAt >= FRAME_NOTIFY_MS) {
+      s.frameNotifiedAt = now;
+      this.onFrame(sn, s.lastFrame.at);
+    }
+  }
+
   /** Called when the camera stopped streaming (for whatever reason). */
   ended(sn) {
     const s = this.streams.get(sn);
     if (!s || (!s.running && !s.starting && s.viewers.size === 0)) return;
     const wasRunning = s.running;
+    if (wasRunning) {
+      const secs = Math.round((this.now() - s.startedAt) / 1000);
+      this.log(`livestream ${this.nameOf(sn)} ended after ${secs} s (timestamps at most ${Math.round(s.maxLeadMs)} ms ahead, slow viewers skipped ${s.skips} times)`);
+      // Report the final still frame if the throttle held it back.
+      if (s.lastFrame && s.frameNotifiedAt != null && Date.parse(s.lastFrame.at) > s.frameNotifiedAt) this.onFrame(sn, s.lastFrame.at);
+    }
     s.running = false;
     s.starting = false;
     s.gop = [];

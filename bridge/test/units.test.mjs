@@ -8,7 +8,7 @@ import { readConfig } from "../src/config.mjs";
 import { CredentialStore } from "../src/credentials.mjs";
 import { findSpsOffset } from "../src/h264.mjs";
 import { ImageStore } from "../src/images.mjs";
-import { LiveStreams, adtsDurationMs } from "../src/live.mjs";
+import { LiveStreams, adtsDurationMs, boundBacklog } from "../src/live.mjs";
 import { splitFrames } from "../src/simulator.mjs";
 import { BridgeState } from "../src/state.mjs";
 
@@ -299,4 +299,64 @@ describe("LiveStreams", () => {
     assert.equal(v.ended, true);
     assert.equal(live.viewerCount("C1"), 0);
   });
+
+  it("logs where the start-up time goes", async () => {
+    let t = 1000;
+    const logs = [];
+    const { live } = make({ now: () => t, log: (m) => logs.push(m), nameOf: () => "Garage" });
+    await live.addViewer("C1", new Sink());
+    t = 2900;
+    live.started("C1");
+    t = 3000;
+    live.feed("C1", PFRAME);
+    t = 4500;
+    live.feed("C1", Buffer.concat([SPS4, PFRAME]));
+    assert.deepEqual(logs, ["livestream Garage: started after 1900 ms, first frame after 2000 ms, first keyframe after 3500 ms"]);
+    t = 64_500;
+    live.ended("C1");
+    assert.match(logs.at(-1), /^livestream Garage ended after 62 s \(timestamps at most \d+ ms ahead, slow viewers skipped 0 times\)$/);
+  });
+
+  it("keeps the latest keyframe as a still frame and reports it at most every 10 s", async () => {
+    let t = Date.parse("2026-10-14T10:00:00Z");
+    const frames = [];
+    const { live } = make({ now: () => t, onFrame: (sn, at) => frames.push(at) });
+    assert.equal(live.lastFrame("C1"), null);
+    await live.addViewer("C1", new Sink());
+    live.started("C1");
+    live.feed("C1", Buffer.concat([Buffer.from([9]), SPS4, PFRAME]));
+    t += 4000;
+    live.feed("C1", Buffer.concat([SPS3, PFRAME]));
+    assert.deepEqual(frames, ["2026-10-14T10:00:00.000Z"], "throttled");
+    assert.equal(findSpsOffset(live.lastFrame("C1").data), 0);
+    live.ended("C1");
+    assert.deepEqual(frames, ["2026-10-14T10:00:00.000Z", "2026-10-14T10:00:04.000Z"], "final frame reported on end");
+    assert.equal(live.lastFrame("C1").at, "2026-10-14T10:00:04.000Z", "kept after the stream ended");
+  });
 });
+
+describe("boundBacklog", () => {
+  const key = { kind: "video", keyframe: true };
+  const p = { kind: "video", keyframe: false };
+  const audio = { kind: "audio" };
+
+  it("passes everything while the viewer keeps up", () => {
+    const accept = boundBacklog(() => 0, { maxBytes: 10 });
+    assert.deepEqual([key, p, audio].map(accept), [true, true, true]);
+  });
+
+  it("skips a slow viewer to the next keyframe once it caught up", () => {
+    let backlog = 0;
+    let skips = 0;
+    const accept = boundBacklog(() => backlog, { maxBytes: 10, onSkip: () => skips++ });
+    assert.equal(accept(key), true);
+    backlog = 50;
+    assert.deepEqual([p, audio, p].map(accept), [false, false, false]);
+    assert.equal(accept(key), false, "still behind at the keyframe");
+    backlog = 0;
+    assert.deepEqual([p, audio].map(accept), [false, false], "resumes only at a keyframe");
+    assert.deepEqual([key, p, audio].map(accept), [true, true, true]);
+    assert.equal(skips, 1);
+  });
+});
+

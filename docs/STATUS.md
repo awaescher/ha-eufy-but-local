@@ -1,6 +1,6 @@
 # Status and handoff
 
-Last updated: 2026-10-13. Version 0.1.0, not released.
+Last updated: 2026-10-14. Version 0.1.0, not released.
 
 ## Verified on real hardware (maintainer's HomeBase 2)
 
@@ -39,7 +39,27 @@ With this repository (bridge natively on macOS, Home Assistant 2026.10.1 from `d
   records, `databaseQueryByDate`: no answer), so person vs. motion is not available locally
   (ADR 0011).
 
+- Apple HomeKit through Home Assistant's HomeKit Bridge (7 cameras added to an existing
+  bridge, HA in Docker on a NAS): all cameras show their still image (latest event thumbnail)
+  in the Home app on Mac, iPhone and Apple TV.
+
 Not yet verified on hardware:
+
+- Live view of a camera opened from the Home app (HomeKit), with `video_codec: copy`. First
+  test: on Apple TV all tiles went to "No response", live view appeared only after ~2 min;
+  on the Mac no live view at all. Cause not known yet. Part of the delay is explained (see
+  below: `ffmpeg` analysed MPEG-TS for 5 s); the integration now uses FLV (ADR 0013), re-test.
+- Bridge changes from the Eufy app analysis (2026-10-14), not yet run on hardware:
+  - The log line `livestream <name>: started after …, first frame after …, first keyframe
+    after …` shows where the start-up time goes; the end line reports how far timestamps ran
+    ahead and how often a slow viewer skipped to the next keyframe.
+  - `unhandled P2P message 1312 …` would mean the HomeBase sends local push notifications
+    (person/motion without the cloud). Walk past a camera with no livestream running and check
+    the log.
+  - `station … connection flags:` shows whether the station record carries
+    `supportConnectMode`/`dskFeatureDisabled` (DSK-less connection).
+  - The camera still image switches to the last live frame (H.264 keyframe from the bridge,
+    converted by Home Assistant's ffmpeg) when it is newer than the event thumbnail.
 
 - The periodic settings refresh (`PROPERTY_REFRESH_SEC`, default 60 s): it should make changes
   from the Eufy app (e.g. night vision, which the HomeBase does not push) show up. Check that
@@ -62,16 +82,23 @@ Not yet verified on hardware:
 - Guard mode: arming away from HA sets `AWAY` on the bridge.
 - Bridge loses its login: HA shows the integration as needing reconfiguration; logging in again
   from the UI restores all entities.
+- Last live frame as still image: `GET /api/frame/{sn}.h264` decodes to a JPEG with the ffmpeg
+  of the Home Assistant 2026.10.1 image (same arguments as HA's `ffmpeg.async_get_image`).
+- Time until a consumer has the first video frame (simulator, no camera wake-up), MPEG-TS /
+  FLV: `ffmpeg` command line (HomeKit Bridge) 5.4 s / 2.8 s, PyAV (Home Assistant's `stream`)
+  1.6 s / 2.8 s, go2rtc about 3 s for both (ADR 0013). HA's stream worker produces HLS
+  segments with H.264 and AAC from the FLV (`devenv/stream_probe.py`).
 
 ## Automated tests
 
 | Suite | Result | Notes |
 |---|---|---|
-| `bridge`: `npm test` | 42 passing | ~97 % line coverage (node built-in coverage) |
+| `bridge`: `npm test` | 88 passing | ~97 % line coverage (node built-in coverage) |
 | `tests/test_config_flow.py` | 16 passing | |
-| `tests/test_init.py` | 8 passing | |
-| `tests/test_entities.py` | 15 passing | |
-| `tests/test_api.py` | 12 passing | `BridgeClient`: SSE parsing, error mapping (100 % of `api.py`) |
+| `tests/test_init.py` | 12 passing | |
+| `tests/test_entities.py` | 19 passing | |
+| `tests/test_settings.py` | 8 passing | |
+| `tests/test_api.py` | 13 passing | `BridgeClient`: SSE parsing, error mapping (100 % of `api.py`) |
 
 Python suites run against Home Assistant 2026.10.1 (Python 3.14), 98 % line coverage.
 `ruff check` and `ruff format --check` are clean.

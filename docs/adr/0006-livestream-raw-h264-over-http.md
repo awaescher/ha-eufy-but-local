@@ -38,5 +38,7 @@ Verified against the simulator: PyAV reads `mpegts` with `h264` + `aac` (LC, 16 
 worker produces HLS segments with an `mp4a.40.2` track, and go2rtc decodes frames from it.
 Open: audio over WebRTC (go2rtc would have to transcode AAC to Opus) and on real hardware.
 
+Since 2026-10-14 the integration uses FLV instead of MPEG-TS, see ADR 0013.
+
 The HomeBase streams one camera at a time; see `bridge/src/live.mjs` for how the bridge
 arbitrates between cameras of one station.

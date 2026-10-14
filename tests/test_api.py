@@ -182,8 +182,8 @@ async def test_missing_image_is_none_but_auth_errors_propagate(raw: RawServer, c
 async def test_urls(session: aiohttp.ClientSession) -> None:
     with_token = BridgeClient(session, "192.168.1.10", 3080, "tok")
     without = BridgeClient(session, "192.168.1.10", 3080, None)
-    assert with_token.stream_url("CAM") == "http://192.168.1.10:3080/api/stream/CAM.ts?token=tok"
-    assert without.stream_url("CAM") == "http://192.168.1.10:3080/api/stream/CAM.ts"
+    assert with_token.stream_url("CAM") == "http://192.168.1.10:3080/api/stream/CAM.flv?token=tok"
+    assert without.stream_url("CAM") == "http://192.168.1.10:3080/api/stream/CAM.flv"
     assert with_token.captcha_url() == "http://192.168.1.10:3080/api/captcha?token=tok"
 
 

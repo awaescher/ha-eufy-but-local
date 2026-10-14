@@ -16,7 +16,7 @@
 | Login, device list | bridge -> Eufy cloud (once at start) | yes |
 | Local events | bridge polls `databaseQueryLatestInfo()` every 5 s; rising `event_count` = new recording | no |
 | Thumbnails | `crop_local_path` from the database -> `downloadImage()` | no |
-| Live view | HA opens `/api/stream/{sn}` -> bridge starts P2P livestream -> raw H.264 | no |
+| Live view | HA opens `/api/stream/{sn}.flv` -> bridge starts P2P livestream -> FLV with H.264 + AAC (ADR 0013) | no |
 | Guard mode | HA service -> bridge -> `setStationProperty(guardMode)` via P2P | no |
 | Person/motion type | Eufy push notification (FCM) -> bridge | yes (supplementary) |
 | Battery | device list at start, then property updates | partly |

@@ -1,6 +1,8 @@
 // eufy-but-local bridge entry point.
 
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { CredentialStore } from "./src/credentials.mjs";
 import { readConfig } from "./src/config.mjs";
 import { EufyConnector } from "./src/eufy.mjs";
@@ -24,7 +26,11 @@ if (config.simulator) {
   }));
   log("bridge", "SIMULATOR MODE – no real HomeBase involved");
 } else {
-  lib = await import("eufy-security-client");
+  // setLoggingLevel is not exported by the package; the connector needs it to keep the
+  // library's P2P debug log (per packet, with stack traces) off during livestreams.
+  const require = createRequire(import.meta.url);
+  const { setLoggingLevel } = require(join(dirname(require.resolve("eufy-security-client")), "logging.js"));
+  lib = { ...(await import("eufy-security-client")), setLoggingLevel };
 }
 
 const connector = new EufyConnector({ state, config, lib, log });

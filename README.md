@@ -59,7 +59,8 @@ decisions: [docs/adr/](docs/adr/README.md).
 
 ## Entities
 
-Per camera: camera (still image = latest event thumbnail, live view on demand), event
+Per camera: camera (still image = latest event thumbnail or the last live frame, whichever is
+newer; live view on demand), event
 "Activity" (`local_recording`, `person`, `motion`), binary sensor "Event (local)", image
 "Last event image", battery, last event, stored events.
 Per HomeBase: alarm panel, select "Guard mode", "Local P2P connection".
@@ -182,7 +183,7 @@ with the defaults, and you log in from Home Assistant. In practice, set only
 | `LIVE_IDLE_SEC` | optional | `10` | stop the stream this long after the last viewer left |
 | `DATA_DIR` | optional | `/data` | session and credentials (file mode 600) |
 | `EUFY_EMAIL`, `EUFY_PASSWORD`, `EUFY_COUNTRY` | optional | – | log in without Home Assistant; otherwise log in from the integration |
-| `BRIDGE_DEBUG` | optional | – | `1` = also log every property value the HomeBase reports (battery, Wi-Fi signal, …) |
+| `BRIDGE_DEBUG` | optional | – | `1` = also log every property value the HomeBase reports (battery, Wi-Fi signal, …) and every P2P message the library does not handle (otherwise the first three per command) |
 | `EUFY_SIMULATOR` | development only | – | `1` = simulated HomeBase |
 
 ### 3. Integration (HACS)
@@ -194,6 +195,77 @@ Or add `https://github.com/awaescher/ha-eufy-but-local` as a custom repository (
 "Eufy But Local", restart Home Assistant, then add the integration and enter the
 bridge host, port and token. If the bridge is not logged in yet, the flow asks for the Eufy
 account and the verification code.
+
+## Apple HomeKit
+
+The cameras are ordinary Home Assistant camera entities, so Home Assistant's built-in
+[HomeKit Bridge](https://www.home-assistant.io/integrations/homekit/) can show them in the
+Home app (iPhone, iPad, Mac, Apple TV). Nothing in this integration is HomeKit-specific.
+
+### Setup
+
+The simplest way: add the cameras to the HomeKit bridge you already use. Entities added to an
+already paired bridge show up in the Home app by themselves, no new pairing needed.
+
+```yaml
+homekit:
+  - name: HASS Bridge
+    port: 21063
+    filter:
+      include_entities:
+        - light.living_room          # your existing entities
+        - camera.front_door
+        - camera.garage
+    entity_config:
+      camera.front_door: &eufy_cam
+        support_audio: true
+        video_codec: copy            # the bridge already delivers H.264, no transcoding
+      camera.garage: *eufy_cam
+```
+
+- **Entity IDs:** the camera entity is named after the device (Eufy app name), so a camera
+  called "Garage" becomes `camera.garage`. Umlauts are dropped ("Haustüre" →
+  `camera.hausture`). Check the exact IDs under *Settings → Devices & services → Entities*.
+- **One `homekit:` key:** keep a single `homekit:` key in `configuration.yaml` and add more
+  bridges as further list items. A second `homekit:` key silently replaces the first (the log
+  says `duplicate key "homekit"`), and the devices of the first bridge disappear from the
+  Home app.
+- **Networking:** Home Assistant needs host networking (`network_mode: host`) for HomeKit's
+  mDNS discovery, the same as the bridge.
+- **If the video stays black,** remove `video_codec: copy`; Home Assistant then transcodes
+  with `libx264`, which costs CPU.
+
+### Start time in the Home app
+
+Home Assistant's HomeKit Bridge reads the camera with the `ffmpeg` command line tool. The
+integration hands it an FLV stream, which ffmpeg starts after 2.8 s against the simulator
+(MPEG-TS: 5.4 s, ADR 0013). No HomeKit setting is needed for this. On real hardware, waking
+the camera adds about 2 s.
+
+Alternatively, Home Assistant's docs suggest one HomeKit instance per camera in accessory
+mode (`mode: accessory`, its own `port`, one camera in `include_entities`). A slow camera
+stream then cannot slow down the other devices of the shared bridge. The catch: every camera
+is a separate HomeKit accessory. It does **not** appear on its own: add each one in the Home
+app (*+ → Add Accessory → More options…*) with the code from Home Assistant's notification,
+and open its port in the host firewall.
+
+### What it does with your cameras
+
+- **Tiles in the Home app** show the camera's still image: the thumbnail of the latest event
+  from the HomeBase, or the last frame of a live view if that is newer (the bridge keeps it
+  and Home Assistant's ffmpeg turns it into a JPEG). Fetching it never wakes a camera. The age
+  the Home app shows ("7 s") is when it last asked Home Assistant, not when the picture was
+  taken.
+- **Opening a camera** starts a live view, which wakes the camera like any live view in Home
+  Assistant: it drains the battery, stops 10 s after the last viewer and after at most
+  120 s (`LIVE_IDLE_SEC`, `LIVE_MAX_SEC`). The HomeBase streams one camera at a time;
+  opening a second camera stops the first.
+- **No recording, no storage:** Home Assistant's HomeKit Bridge does not support HomeKit
+  Secure Video, so HomeKit records nothing and stores nothing in iCloud, and neither does
+  Home Assistant.
+- **Apple:** at home, the Apple device fetches images and video directly from Home
+  Assistant inside your network. Away from home, it goes through your home hub (HomePod or
+  Apple TV) and Apple's relay, encrypted end to end between the hub and your device.
 
 ## Development
 

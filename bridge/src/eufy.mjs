@@ -13,12 +13,19 @@ import { ImageStore } from "./images.mjs";
 import { LiveStreams } from "./live.mjs";
 import { CAMERA_PROPERTIES, HUMANS_ONLY, STATION_PROPERTIES, pick } from "./properties.mjs";
 
+// The Eufy app treats this unsolicited P2P command from the HomeBase as a local push
+// notification (docs/eufy-app-analysis.md); eufy-security-client 3.8.0 does not handle it.
+export const LOCAL_PUSH_COMMAND = 1312;
+// Other unhandled P2P messages are logged this often per command, all of them with BRIDGE_DEBUG.
+const UNHANDLED_LOG_LIMIT = 3;
+
 export class EufyConnector {
   /**
    * @param {object} opts
    * @param {import("./state.mjs").BridgeState} opts.state
    * @param {object} opts.config     see config.mjs
-   * @param {object} opts.lib        { EufySecurity, P2PConnectionType, GuardMode, PropertyName }
+   * @param {object} opts.lib        { EufySecurity, P2PConnectionType, GuardMode, PropertyName,
+   *                                   LogLevel?, setLoggingLevel? }
    * @param {(tag: string, msg: string) => void} [opts.log]
    */
   constructor({ state, config, lib, log = () => {} }) {
@@ -46,10 +53,16 @@ export class EufyConnector {
       start: (sn) => this.client.startStationLivestream(sn),
       stop: (sn) => this.client.stopStationLivestream(sn),
       idleMs: config.liveIdleSeconds * 1000,
-      onChange: (sn, live) => this.state.upsertCamera(sn, { live }),
+      onChange: (sn, live) => {
+        this.state.upsertCamera(sn, { live });
+        this.#p2pDebug();
+      },
+      onFrame: (sn, at) => this.state.upsertCamera(sn, { frameAt: at }),
       log: (m) => this.log("local", m),
       stationOf: (sn) => this.state.cameras[sn]?.station ?? sn,
+      nameOf: (sn) => this.state.cameras[sn]?.name ?? sn,
     });
+    this.unhandled = new Map(); // P2P command id -> times seen
   }
 
   /** Keeps a thumbnail the v2 decoder could not handle, for diagnosis; it never leaves the host. */
@@ -100,7 +113,7 @@ export class EufyConnector {
           acceptInvitations: true,
           ...(stationSerial && stationIp ? { stationIPAddresses: { [stationSerial]: stationIp } } : {}),
         },
-        quietLogger,
+        this.#libraryLogger(),
       );
     } catch (err) {
       this.client = null;
@@ -108,6 +121,7 @@ export class EufyConnector {
       this.log("cloud", this.state.message);
       return;
     }
+    this.#p2pDebug();
     this.client.setCameraMaxLivestreamDuration(this.config.liveMaxSeconds);
     this.#limitCloud(this.client);
     this.#wire(this.client);
@@ -116,6 +130,45 @@ export class EufyConnector {
     } catch (err) {
       this.state.setPhase("error", err.message);
     }
+  }
+
+  /**
+   * The library's P2P debug output is the only place where it reports messages it does not
+   * handle, such as the local push (LOCAL_PUSH_COMMAND). It also logs every received packet
+   * with a stack trace, so it stays off while a livestream runs.
+   */
+  #p2pDebug() {
+    const { setLoggingLevel, LogLevel } = this.lib;
+    if (typeof setLoggingLevel !== "function" || !LogLevel) return;
+    const streaming = Object.values(this.state.cameras).some((cam) => cam.live);
+    setLoggingLevel("p2p", streaming ? LogLevel.Off : LogLevel.Debug);
+  }
+
+  #libraryLogger() {
+    return {
+      trace() {},
+      info() {},
+      debug: (message, details) => {
+        if (String(message).includes("Not implemented")) this.#unhandled(details ?? {});
+      },
+      warn: (...a) => console.warn(...a),
+      error: (...a) => console.error(...a),
+    };
+  }
+
+  /** Logs a P2P message the library ignored; the payload helps decode it later. */
+  #unhandled(details) {
+    const inner = details.message;
+    const id = details.commandId ?? inner?.commandType ?? "?";
+    const seen = (this.unhandled.get(id) ?? 0) + 1;
+    this.unhandled.set(id, seen);
+    const push = id === LOCAL_PUSH_COMMAND;
+    if (!push && seen > UNHANDLED_LOG_LIMIT && !this.config.debug) return;
+    const name = details.commandIdName ? `${details.commandIdName} ` : "";
+    const channel = details.channel ?? inner?.channel ?? "?";
+    const payload = String(details.data ?? (typeof inner === "string" ? inner : inner?.data) ?? "").slice(0, 2000);
+    const hint = push ? " (possibly a local push notification, please report this line)" : "";
+    this.log("local", `unhandled P2P message ${name}${id} on channel ${channel}${hint}: ${payload}`);
   }
 
   /**
@@ -330,6 +383,10 @@ export class EufyConnector {
         properties: pick(st.getProperties?.(), STATION_PROPERTIES),
       });
       this.log("cloud", `station ${st.getName()} (${st.getSerial()}, ${st.getModel()})`);
+      // Whether Eufy runs this station without a DSK key (docs/eufy-app-analysis.md); no secrets.
+      const raw = st.getRawStation?.() ?? {};
+      const flags = Object.keys(raw).filter((k) => /connect_?mode|dsk_?feature/i.test(k));
+      this.log("cloud", `station ${st.getName()} connection flags: ${flags.map((k) => `${k}=${JSON.stringify(raw[k])}`).join(", ") || "none reported"}`);
     });
     c.on("device added", (d) => {
       if (!d.isCamera()) return;
@@ -474,10 +531,3 @@ export class EufyConnector {
   }
 }
 
-const quietLogger = {
-  trace() {},
-  debug() {},
-  info() {},
-  warn: (...a) => console.warn(...a),
-  error: (...a) => console.error(...a),
-};

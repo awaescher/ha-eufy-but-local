@@ -204,9 +204,32 @@ ECDH against a server key built into the app (`+[BCECDHManager serverPresetPubli
 the library also ships a fixed server key), `login_id`, `verify_code`, `captcha_id`, `answer`,
 `time_zone`. Same scheme as `login_sec`, new path.
 
-The response formats of `v3/app/get_hub_list`, `v3/app/get_devs_list` and `v2/app/get_p2pconn`
-were not decoded. The app's models contain `p2p_did`, `app_conn`, `p2p_conn`, `dsk_key` and
-`dsk_expiration`. A request log from a real login would settle the shapes.
+### Response model of the station and device lists
+
+Stations and cameras share one model, `BCDevice` (`MegaCommonFramework`, parsed with
+YYModel). Its properties match the raw records `eufy-security-client` takes from the legacy
+lists almost one to one: `p2p_did`, `app_conn`, `p2p_conn`, `p2p_license`, `push_did`,
+`ndt_did`, `query_server_did`, `wipn_ndt_aes128key`, `member`, `params`, `device_channel`,
+`device_type`, `parent_sn`, `local_ip`, `ip_addr`, `main_sw_version`, `time_zone`, `dsk_key`,
+`dsk_expiration`, … New compared with the library's types: `supportConnectMode`,
+`dskFeatureDisabled`, `supportPlatformV2`, `supportHB3EufySDK`, `rtcDomain`,
+`signaling_servers`, `webrtc_sdk_version`.
+
+`+[BCDevice modelCustomPropertyMapper]` returns a constant dictionary (read from the binary)
+that accepts **both** naming schemes:
+
+| Property | JSON keys accepted |
+|---|---|
+| `device_sn` | `device_sn`, `station_sn` |
+| `device_id` | `device_id`, `station_id` |
+| `device_name` | `device_name`, `station_name` |
+| `device_model` | `device_model`, `station_model` |
+| `dsk_expiration` | `dsk_expiration`, `expiration` (`expiration` is the field of the legacy `get_dsk_keys` answer) |
+
+Inference, not observed: the v3 lists deliver the same records, with stations possibly named
+`device_*` instead of `station_*`. A small key mapping in front of the library's parsing would
+then be enough. `BCP2PConnectInfo` (`p2p_did, app_conn, p2p_license, domain, userId`) is the
+likely shape of the `get_p2pconn` answer. A request log from a real login would settle both.
 
 ### What the local P2P connection actually needs from the cloud
 
@@ -229,6 +252,20 @@ The app itself caches DSK keys with expiration (`getDskCacheSn:`, `updateDskCach
 `PPCS_ConnectByServer(DID, mode, port, ServerString)`; of the observed modes `0x7E`, `0x5E` and
 `0x3F`, only `0x3F` has bit 0 (LAN search) set.
 
+When the app fetches a DSK key (`-[BCDevice needFetchDSK]`, selectors resolved from the
+disassembly):
+
+- **Never** if the device record has `supportConnectMode == 2` or `dskFeatureDisabled`. The app
+  then connects without a DSK key at all.
+- Otherwise if `dsk_key` is missing or `dsk_expiration` is less than 120 s away.
+- `-[BCP2PClientConfig dskInvalid:]` clears key and expiration when the P2P layer reports
+  `ERROR_PPCS_INVALID_DSK`. The refetch goes through the Kotlin layer
+  (`ESIMKMegaDeviceManager`, request field `invalid_dsk`).
+
+So Eufy itself runs devices without a DSK. Which values a HomeBase 2 gets for
+`supportConnectMode` and `dskFeatureDisabled` is visible only in its cloud record. The library
+receives that record but does not type these fields.
+
 ### Consequences
 
 1. **Offline start is feasible without new protocol work**: after a successful cloud start,
@@ -238,13 +275,26 @@ The app itself caches DSK keys with expiration (`getDskCacheSn:`, `updateDskCach
    wrapper or patch. That calls for an ADR. Combined with the local push (1312) this would
    make the bridge independent of the cloud after the first setup.
 2. **When the legacy device list fails**, the replacement endpoints are known
-   (`v3/app/get_hub_list`, `v3/app/get_devs_list`, `v2/app/get_p2pconn`). Their response
-   formats are not. Before writing code, compare them with `@mega-yfue/eufy-sdk` (ADR 0010),
-   which targets the current backend.
-3. The library's client identity (`v4.6.0`, Android) is years old. If Eufy starts rejecting
+   (`v3/app/get_hub_list`, `v3/app/get_devs_list`, `v2/app/get_p2pconn`), and the app's model
+   suggests the records keep their fields (see the key mapping above). Before writing code,
+   capture one real response and compare with `@mega-yfue/eufy-sdk` (ADR 0010), which targets
+   the current backend.
+3. Cheap check on hardware: log `supportConnectMode` and `dskFeatureDisabled` from the raw
+   station record the library receives (diagnostics, values are not secret). If the HomeBase 2
+   reports mode 2 or a disabled DSK, the DSK question is settled for good.
+4. The library's client identity (`v4.6.0`, Android) is years old. If Eufy starts rejecting
    old clients, that is a likely failure point independent of the endpoints.
 
-## Suggested order (not implemented)
+## Suggested order
+
+Implemented on 2026-10-14 (not yet run on hardware, see `STATUS.md`): 0 (unhandled P2P
+messages, including 1312, are logged; the library's P2P debug log is on only while no
+livestream runs, because it logs every packet with a stack trace), 1 (start-up timing per
+stream), 3 in part (a viewer that falls behind skips to the next keyframe; timestamps are only
+measured, not re-anchored, because re-anchoring would make them run backwards), 4 in a
+different form (the bridge keeps the last live keyframe, `GET /api/frame/{sn}`, and the camera
+entity converts it with ffmpeg instead of starting Home Assistant's stream, which would wake
+the camera again on reconnect), 6.1 (connection flags are logged). Open: 2, 5, 6.2–6.4.
 
 0. **Local push test** (highest value, tiny change): make the library's P2P debug log
    visible behind an env switch (e.g. `EUFY_DEBUG=p2p` instead of `quietLogger`), walk past a
@@ -267,3 +317,8 @@ The app itself caches DSK keys with expiration (`getDskCacheSn:`, `updateDskCach
    create a stream for every still and wake the camera.
 5. **Hardware exploration** before any code: RTSP/NAS (5), streaming quality (6), channel
    stragglers after a switch (8).
+6. **Cloud independence**, in this order:
+   1. Log `supportConnectMode`/`dskFeatureDisabled` of the station record.
+   2. Re-run `offline-test-plan.md` rows 5 and 6.
+   3. Write an ADR on caching the station/device records for an offline start.
+   4. Capture one response of the v3 lists for the day the legacy lists disappear.
