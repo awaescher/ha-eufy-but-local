@@ -6,6 +6,7 @@ from typing import Any
 
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.typing import UNDEFINED
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import BridgeError
@@ -30,7 +31,31 @@ def station_device_info(station_sn: str, station: dict[str, Any]) -> DeviceInfo:
     )
 
 
-class EufyStationEntity(CoordinatorEntity[EufyLocalCoordinator]):
+def english_name(name_or_device_class: str) -> str:
+    """Name for an entity ID: a translated name, or a device class such as `signal_strength`."""
+    return name_or_device_class.replace("_", " ")
+
+
+class EnglishEntityId:
+    """Entity IDs in English, whatever language Home Assistant runs in.
+
+    Home Assistant derives entity IDs from the translated name for some languages (German among
+    them). IDs end up in automations and HomeKit configs, so they must not depend on that.
+    """
+
+    @property
+    def suggested_object_id(self) -> str | None:
+        if not self.platform_data:  # type: ignore[attr-defined]
+            return super().suggested_object_id  # type: ignore[misc]
+        device_class = self.device_class  # type: ignore[attr-defined]
+        name = self._name_internal(  # type: ignore[attr-defined]
+            english_name(str(device_class)) if device_class else None,
+            self.platform_data.default_language_platform_translations,  # type: ignore[attr-defined]
+        )
+        return None if name is UNDEFINED else name
+
+
+class EufyStationEntity(EnglishEntityId, CoordinatorEntity[EufyLocalCoordinator]):
     """An entity belonging to the HomeBase."""
 
     _attr_has_entity_name = True
@@ -64,7 +89,7 @@ class EufyStationEntity(CoordinatorEntity[EufyLocalCoordinator]):
         await _run(client.command("station", self.station_sn, name, seconds), name)
 
 
-class EufyCameraEntity(CoordinatorEntity[EufyLocalCoordinator]):
+class EufyCameraEntity(EnglishEntityId, CoordinatorEntity[EufyLocalCoordinator]):
     """An entity belonging to a camera; the device hangs off the HomeBase."""
 
     _attr_has_entity_name = True

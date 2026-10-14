@@ -98,6 +98,9 @@ Not yet verified on hardware:
   unexpectedly"): with `support_audio` HomeKit's ffmpeg maps an audio track. The bridge now
   announces audio unless the camera's microphone is off; ffmpeg with HomeKit's audio mapping
   and HA's stream worker then read the FLV.
+- Entity IDs: Home Assistant derives them from the translated name for some languages; a
+  German install got `event.terrasse_aktivitat` (seen 2026-10-15). The integration now
+  suggests English IDs and renames generated ones on start (tests with `language = "de"`).
 - Thumbnail time: HomeBase thumbnail names carry the recording time
   (`20261013112255_c00.jpg`, local time). `imageAt` used to be the download time, so after a
   bridge restart Home Assistant showed e.g. 10:17 for a picture taken at 09:49 (seen on

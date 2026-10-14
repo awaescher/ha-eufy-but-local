@@ -6,19 +6,30 @@ HomeBase. Only tested with HomeBase 2 (T8010).
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.components.camera import DOMAIN as CAMERA_DOMAIN
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers import config_validation as cv, device_registry as dr, service
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+    service,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.translation import async_get_translations
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.util import slugify
 import voluptuous as vol
 
 from .api import BridgeClient, BridgeError
 from .const import CONF_CLOUD_PUSH, CONF_TOKEN, DOMAIN
 from .coordinator import EufyLocalConfigEntry, EufyLocalCoordinator
-from .entity import station_device_info
+from .entity import english_name, station_device_info
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
     Platform.ALARM_CONTROL_PANEL,
@@ -76,9 +87,55 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufyLocalConfigEntry) ->
         )
         coordinator.station_device_ids[station_sn] = device.id
     coordinator.start_listener()
+    await _async_english_entity_ids(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
+
+
+# Names entities had in earlier versions; their generated IDs are renamed too.
+FORMER_NAMES: dict[str, tuple[str, ...]] = {
+    "local_activity": ("Event (local)", "Ereignis (lokal)", "New recording", "Neue Aufnahme"),
+}
+
+
+async def _async_english_entity_ids(hass: HomeAssistant, entry: EufyLocalConfigEntry) -> None:
+    """Rename entity IDs Home Assistant derived from a translated name to English ones.
+
+    Before 0.1.15 a German Home Assistant created IDs like `event.terrasse_aktivitat`. IDs the
+    user chose are left alone: only an ID generated from the device name and one of the
+    entity's names (current in any shipped language, or a former one) is renamed.
+    """
+    entities = er.async_get(hass)
+    devices = dr.async_get(hass)
+    english = await async_get_translations(hass, "en", "entity", {DOMAIN})
+    translated = [
+        await async_get_translations(hass, language, "entity", {DOMAIN})
+        for language in {"de", hass.config.language}
+    ]
+    for reg in er.async_entries_for_config_entry(entities, entry.entry_id):
+        device = devices.async_get(reg.device_id) if reg.device_id else None
+        if device is None or not device.name:
+            continue
+        domain, object_id = reg.entity_id.split(".", 1)
+        if reg.translation_key:
+            key = f"component.{DOMAIN}.entity.{domain}.{reg.translation_key}.name"
+            name = english.get(key)
+            known = {reg.original_name, *(t.get(key) for t in translated)}
+            known.update(FORMER_NAMES.get(reg.translation_key, ()))
+        elif reg.original_device_class:
+            name = english_name(reg.original_device_class)
+            known = {reg.original_name}
+        else:
+            continue
+        generated = {slugify(f"{device.name} {n}") for n in known if n}
+        if not name or object_id not in generated:
+            continue  # chosen by the user
+        new_id = f"{domain}.{slugify(f'{device.name} {name}')}"
+        if new_id == reg.entity_id or entities.async_get(new_id):
+            continue
+        _LOGGER.info("Renaming %s to %s (English entity IDs)", reg.entity_id, new_id)
+        entities.async_update_entity(reg.entity_id, new_entity_id=new_id)
 
 
 async def _async_options_updated(hass: HomeAssistant, entry: EufyLocalConfigEntry) -> None:

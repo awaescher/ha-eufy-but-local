@@ -175,3 +175,64 @@ async def test_not_ready_when_bridge_rejects_the_configuration(
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+async def test_entity_ids_are_english_in_a_german_home_assistant(
+    hass: HomeAssistant, entry: MockConfigEntry, bridge: FakeBridge
+) -> None:
+    hass.config.language = "de"
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    ids = {
+        e.entity_id for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    }
+    assert {
+        "event.front_door_activity",
+        "binary_sensor.front_door_motion",
+        "sensor.front_door_battery",
+        "camera.front_door",
+    } <= ids
+    assert not [i for i in ids if "aktivit" in i or "bewegung" in i or "batterie" in i]
+    # The names shown in the UI stay German.
+    assert hass.states.get("binary_sensor.front_door_motion").name == "Front door Bewegung"
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_generated_german_entity_ids_are_renamed_chosen_ones_kept(
+    hass: HomeAssistant, entry: MockConfigEntry, bridge: FakeBridge
+) -> None:
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={(DOMAIN, CAM)}, name="Front door"
+    )
+    registry = er.async_get(hass)
+
+    def old(domain: str, key: str, object_id: str, name: str, translation_key: str) -> None:
+        registry.async_get_or_create(
+            domain,
+            DOMAIN,
+            f"{CAM}_{key}",
+            suggested_object_id=object_id,
+            config_entry=entry,
+            device_id=device.id,
+            original_name=name,
+            translation_key=translation_key,
+        )
+
+    old("event", "activity", "front_door_aktivitat", "Aktivität", "activity")
+    # 0.1.14 already stored the new name; the ID still came from the former one.
+    old(
+        "binary_sensor", "local_activity", "front_door_ereignis_lokal", "Bewegung", "local_activity"
+    )
+    old("switch", "status_led", "my_led", "Status-LED", "status_led")
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert registry.async_get_entity_id("event", DOMAIN, f"{CAM}_activity") == (
+        "event.front_door_activity"
+    )
+    assert registry.async_get_entity_id("binary_sensor", DOMAIN, f"{CAM}_local_activity") == (
+        "binary_sensor.front_door_motion"
+    )
+    assert registry.async_get_entity_id("switch", DOMAIN, f"{CAM}_status_led") == "switch.my_led"
+    await hass.config_entries.async_unload(entry.entry_id)

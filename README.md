@@ -255,9 +255,11 @@ homekit:
 
 - **Entity IDs:** the camera entity is named after the device (Eufy app name), so a camera
   called "Garage" becomes `camera.garage`. Umlauts are dropped ("Haustüre" →
-  `camera.hausture`). The motion sensor is the camera's "Motion" binary sensor (`…_motion`;
-  `…_bewegung` if Home Assistant ran in German when the entity was created; installations
-  from before 0.1.14 keep their old ID, `…_event_local` or `…_ereignis_lokal`). Check the exact IDs under *Settings → Devices & services → Entities*.
+  `camera.hausture`). The motion sensor is the camera's "Motion" binary sensor (`…_motion`).
+  Entity IDs are always English, whatever language Home Assistant runs in; IDs that older
+  versions generated from German names (e.g. `…_ereignis_lokal`, `event.…_aktivitat`) are
+  renamed on the first start of 0.1.15. Update automations and the HomeKit config that use
+  them. Check the exact IDs under *Settings → Devices & services → Entities*.
 - **One `homekit:` key:** keep a single `homekit:` key in `configuration.yaml` and add more
   bridges as further list items. A second `homekit:` key silently replaces the first (the log
   says `duplicate key "homekit"`), and the devices of the first bridge disappear from the
