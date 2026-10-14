@@ -119,9 +119,14 @@ class BridgeClient:
         """FLV with video and audio, timestamped by the bridge (ADR 0013)."""
         return self.url(f"/api/stream/{device_sn}.flv", with_token=True)
 
-    def frame_url(self, device_sn: str) -> str:
-        """Latest live keyframe as raw H.264; never starts the camera."""
-        return self.url(f"/api/frame/{device_sn}.h264", with_token=True)
+    async def frame(self, device_sn: str) -> bytes | None:
+        """Latest live keyframe as raw H.264, or None; never starts the camera."""
+        try:
+            return await self._request("GET", f"/api/frame/{device_sn}.h264")
+        except BridgeAuthError:
+            raise
+        except BridgeError:
+            return None
 
     def captcha_url(self) -> str:
         return self.url("/api/captcha", with_token=True)

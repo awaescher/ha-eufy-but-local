@@ -86,8 +86,12 @@ Not yet verified on hardware:
   keyframe, as seen on hardware): go2rtc failed to set up the stream from MPEG-TS
   ("streams: unknown error"; over WebRTC this is the `Codec.Match` crash). The bridge now
   delivers nothing before the first keyframe; go2rtc then reads H.264 + AAC from TS and FLV.
-- Last live frame as still image: `GET /api/frame/{sn}.h264` decodes to a JPEG with the ffmpeg
-  of the Home Assistant 2026.10.1 image (same arguments as HA's `ffmpeg.async_get_image`).
+- Last live frame as still image: the camera entity pipes `GET /api/frame/{sn}.h264` into the
+  ffmpeg of the Home Assistant 2026.10.1 image (5 s limit, one attempt per frame, failures
+  logged); a 2304x1296 keyframe decodes in 40 ms. The bridge keeps a frame only once it has
+  the IDR slice, also when SPS/PPS arrive as a separate frame. On hardware (2026-10-14) the
+  Home app kept a 2-minute-old snapshot of Hof (2304x1296) while the other cameras updated;
+  re-test with these changes.
 - Time until a consumer has the first video frame (simulator, no camera wake-up), MPEG-TS /
   FLV: `ffmpeg` command line (HomeKit Bridge) 5.4 s / 2.8 s, PyAV (Home Assistant's `stream`)
   1.6 s / 2.8 s, go2rtc about 3 s for both (ADR 0013). HA's stream worker produces HLS
@@ -97,10 +101,10 @@ Not yet verified on hardware:
 
 | Suite | Result | Notes |
 |---|---|---|
-| `bridge`: `npm test` | 89 passing | ~97 % line coverage (node built-in coverage) |
+| `bridge`: `npm test` | 90 passing | ~97 % line coverage (node built-in coverage) |
 | `tests/test_config_flow.py` | 16 passing | |
 | `tests/test_init.py` | 12 passing | |
-| `tests/test_entities.py` | 19 passing | |
+| `tests/test_entities.py` | 20 passing | |
 | `tests/test_settings.py` | 8 passing | |
 | `tests/test_api.py` | 13 passing | `BridgeClient`: SSE parsing, error mapping (100 % of `api.py`) |
 

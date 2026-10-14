@@ -32,6 +32,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
+from custom_components.eufy_but_local.camera import h264_to_jpeg
 from custom_components.eufy_but_local.const import EVENT_ACTIVE_SECONDS
 
 from .conftest import CAM, JPEG, STATION, TOKEN, FakeBridge, wait_for
@@ -160,36 +161,59 @@ async def test_camera_image_is_cached_until_a_new_thumbnail(
 
 
 async def test_camera_image_prefers_a_newer_live_frame(
-    hass: HomeAssistant, bridge: FakeBridge, setup_integration: MockConfigEntry
+    hass: HomeAssistant,
+    bridge: FakeBridge,
+    setup_integration: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     coordinator = setup_integration.runtime_data
     frame_jpeg = b"\xff\xd8live-frame\xff\xd9"
-    with patch(
-        "custom_components.eufy_but_local.camera.async_get_image", return_value=frame_jpeg
-    ) as ffmpeg:
-        # Older than the event thumbnail: the thumbnail wins, ffmpeg is not needed.
-        bridge.state["cameras"][CAM]["frameAt"] = "2026-10-13T07:00:00.000Z"
-        bridge.push_state()
-        await wait_for(lambda: coordinator.cameras[CAM]["frameAt"] is not None)
-        assert (await async_get_image(hass, CAMERA)).content == JPEG
-        ffmpeg.assert_not_called()
+    bridge.frames[CAM] = b"\x00\x00\x00\x01h264"
 
-        bridge.state["cameras"][CAM]["frameAt"] = "2026-10-13T09:30:00.000Z"
+    async def push_frame(at: str) -> None:
+        bridge.state["cameras"][CAM]["frameAt"] = at
         bridge.push_state()
-        await wait_for(lambda: coordinator.cameras[CAM]["frameAt"] == "2026-10-13T09:30:00.000Z")
+        await wait_for(lambda: coordinator.cameras[CAM]["frameAt"] == at)
+
+    with patch(
+        "custom_components.eufy_but_local.camera.h264_to_jpeg", return_value=(frame_jpeg, "")
+    ) as decode:
+        # Older than the event thumbnail: the thumbnail wins, no decoding needed.
+        await push_frame("2026-10-13T07:00:00.000Z")
+        assert (await async_get_image(hass, CAMERA)).content == JPEG
+        decode.assert_not_called()
+
+        await push_frame("2026-10-13T09:30:00.000Z")
         assert (await async_get_image(hass, CAMERA)).content == frame_jpeg
         await async_get_image(hass, CAMERA)
-        ffmpeg.assert_called_once()  # cached until the next frame
-        assert ffmpeg.call_args.args[1] == (
-            f"http://127.0.0.1:{bridge.port}/api/frame/{CAM}.h264?token={TOKEN}"
-        )
+        decode.assert_called_once()  # cached until the next frame
+        assert decode.call_args.args[1] == bridge.frames[CAM]
 
-        # ffmpeg fails: fall back to the event thumbnail.
-        ffmpeg.return_value = None
-        bridge.state["cameras"][CAM]["frameAt"] = "2026-10-13T09:40:00.000Z"
-        bridge.push_state()
-        await wait_for(lambda: coordinator.cameras[CAM]["frameAt"] == "2026-10-13T09:40:00.000Z")
+        # Decoding fails: the event thumbnail, a warning, and no second attempt for this frame.
+        decode.return_value = (None, "Invalid data found")
+        await push_frame("2026-10-13T09:40:00.000Z")
         assert (await async_get_image(hass, CAMERA)).content == JPEG
+        assert (await async_get_image(hass, CAMERA)).content == JPEG
+        assert decode.call_count == 2
+        assert "could not decode the last live frame (Invalid data found)" in caplog.text
+
+
+async def test_h264_to_jpeg(tmp_path) -> None:
+    def script(name: str, body: str) -> str:
+        path = tmp_path / name
+        path.write_text(f"#!/bin/sh\n{body}\n")
+        path.chmod(0o755)
+        return str(path)
+
+    ok = script("ok", "cat >/dev/null; printf JPEG")
+    assert await h264_to_jpeg(ok, b"frame") == (b"JPEG", "")
+    failing = script("failing", "cat >/dev/null; echo 'Invalid data found' >&2; exit 1")
+    assert await h264_to_jpeg(failing, b"frame") == (None, "Invalid data found")
+    image, reason = await h264_to_jpeg(str(tmp_path / "missing"), b"frame")
+    assert image is None and "No such file" in reason
+    slow = script("slow", "sleep 5")
+    with patch("custom_components.eufy_but_local.camera.FRAME_TIMEOUT", 0.2):
+        assert await h264_to_jpeg(slow, b"frame") == (None, "no picture within 0.2 s")
 
 
 async def test_stream_source_carries_token(hass: HomeAssistant, bridge: FakeBridge) -> None:
