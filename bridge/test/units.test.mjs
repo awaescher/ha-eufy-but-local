@@ -149,6 +149,34 @@ describe("ImageStore", () => {
     store.close();
   });
 
+  it("tries a download the HomeBase did not answer again after a minute, and logs it", async () => {
+    let t = 0;
+    const requested = [];
+    const logs = [];
+    const store = new ImageStore({ download: (p) => requested.push(p), timeoutMs: 10, now: () => t, log: (m) => logs.push(m), nameOf: () => "Hof" });
+    store.request("C1", "/a.jpg");
+    await new Promise((r) => setTimeout(r, 30));
+    assert.match(logs[0], /^thumbnail of Hof: no answer from the HomeBase within 0 s; trying again in 60 s$/);
+    store.request("C1", "/a.jpg"); // the next poll, too early
+    assert.equal(requested.length, 1);
+    t += 60_000;
+    store.request("C1", "/a.jpg");
+    assert.equal(requested.length, 2);
+    store.received("/a.jpg", Buffer.from("A"));
+    assert.equal(store.get("C1").data.toString(), "A");
+    store.close();
+  });
+
+  it("does not retry an image that could not be decoded", () => {
+    const requested = [];
+    const store = new ImageStore({ download: (p) => requested.push(p) });
+    store.request("C1", "/a.jpg");
+    store.received("/a.jpg", null);
+    store.request("C1", "/a.jpg");
+    assert.equal(requested.length, 1);
+    store.close();
+  });
+
   it("continues after a failing download", () => {
     const requested = [];
     const store = new ImageStore({

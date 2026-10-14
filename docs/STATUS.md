@@ -101,6 +101,10 @@ Not yet verified on hardware:
 - Entity IDs: Home Assistant derives them from the translated name for some languages; a
   German install got `event.terrasse_aktivitat` (seen 2026-10-15). The integration now
   suggests English IDs and renames generated ones on start (tests with `language = "de"`).
+- Thumbnail downloads (2026-10-15): Hof often showed no picture in Home Assistant and the Home
+  app. A download the HomeBase did not answer within 8 s was never retried (the path was
+  marked as fetched when requested) and left no log line. It is now retried after 60 s and
+  logged (`thumbnail of …: no answer …`); confirm on hardware that this was Hof's problem.
 - Thumbnail time: HomeBase thumbnail names carry the recording time
   (`20261013112255_c00.jpg`, local time). `imageAt` used to be the download time, so after a
   bridge restart Home Assistant showed e.g. 10:17 for a picture taken at 09:49 (seen on
@@ -120,7 +124,7 @@ Not yet verified on hardware:
 
 | Suite | Result | Notes |
 |---|---|---|
-| `bridge`: `npm test` | 104 passing | ~97 % line coverage (node built-in coverage) |
+| `bridge`: `npm test` | 106 passing | ~97 % line coverage (node built-in coverage) |
 | `tests/test_config_flow.py` | 16 passing | |
 | `tests/test_init.py` | 12 passing | |
 | `tests/test_entities.py` | 20 passing | |

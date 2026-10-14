@@ -14,22 +14,33 @@ export function pictureTime(path) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+// A download the HomeBase did not answer is tried again after this long (the poller asks for
+// the latest thumbnail every few seconds). Before, it was never retried until the next event.
+const RETRY_MS = 60_000;
+
 export class ImageStore {
   /**
    * @param {object} opts
    * @param {(path: string) => void} opts.download  requests a thumbnail by station path
    * @param {number} [opts.timeoutMs]               give up waiting for an answer after this
    * @param {(msg: string) => void} [opts.log]
+   * @param {(sn: string) => string} [opts.nameOf]  camera name for log lines
+   * @param {() => number} [opts.now]
    */
-  constructor({ download, timeoutMs = 8000, log = () => {} }) {
+  constructor({ download, timeoutMs = 8000, log = () => {}, nameOf = (sn) => sn, now = () => Date.now() }) {
     this.download = download;
     this.timeoutMs = timeoutMs;
     this.log = log;
+    this.nameOf = nameOf;
+    this.now = now;
     this.images = new Map(); // sn -> { data, mime }
     this.owner = new Map(); // station path -> sn
-    this.lastPath = new Map(); // sn -> last requested path
+    this.fetched = new Map(); // sn -> path of the stored image
+    this.pending = new Set(); // paths queued or being downloaded
+    this.retryAt = new Map(); // path -> earliest retry after a failed download
+    this.undecodable = new Set(); // paths whose image could not be decoded; not retried
     this.queue = [];
-    this.busy = false;
+    this.current = null;
     this.timer = null;
   }
 
@@ -37,39 +48,58 @@ export class ImageStore {
     return this.images.get(sn) ?? null;
   }
 
-  /** Requests the thumbnail at `path` for camera `sn` unless it was already fetched. */
+  /** Requests the thumbnail at `path` for camera `sn` unless it is stored, pending or failed recently. */
   request(sn, path, { force = false } = {}) {
-    if (!path || (!force && this.lastPath.get(sn) === path)) return;
-    this.lastPath.set(sn, path);
+    if (!path || this.pending.has(path)) return;
+    if (!force && (this.fetched.get(sn) === path || this.undecodable.has(path))) return;
+    if (!force && (this.retryAt.get(path) ?? 0) > this.now()) return;
     this.owner.set(path, sn);
+    this.pending.add(path);
     this.queue.push(path);
     this.#pump();
   }
 
-  /** Stores a downloaded image. Returns the camera serial or null if unknown. */
+  /** Stores a downloaded image (`data` null: it could not be decoded). Returns the camera serial or null. */
   received(path, data, mime = "image/jpeg") {
-    clearTimeout(this.timer);
-    this.busy = false;
+    if (path === this.current) {
+      clearTimeout(this.timer);
+      this.current = null;
+    }
+    this.pending.delete(path);
     const sn = this.owner.get(path) ?? null;
-    if (sn && data?.length) this.images.set(sn, { data, mime });
+    if (sn && data?.length) {
+      this.images.set(sn, { data, mime });
+      this.fetched.set(sn, path);
+      this.retryAt.delete(path);
+    } else if (sn) {
+      this.undecodable.add(path);
+    }
     this.#pump();
     return sn;
   }
 
+  #failed(path, why) {
+    this.pending.delete(path);
+    this.retryAt.set(path, this.now() + RETRY_MS);
+    const sn = this.owner.get(path);
+    this.log(`thumbnail of ${sn ? this.nameOf(sn) : path}: ${why}; trying again in ${RETRY_MS / 1000} s`);
+  }
+
   #pump() {
-    if (this.busy || this.queue.length === 0) return;
+    if (this.current !== null || this.queue.length === 0) return;
     const path = this.queue.shift();
-    this.busy = true;
+    this.current = path;
     try {
       this.download(path);
     } catch (err) {
-      this.log(`image download failed: ${err.message}`);
-      this.busy = false;
+      this.current = null;
+      this.#failed(path, `download failed (${err.message})`);
       this.#pump();
       return;
     }
     this.timer = setTimeout(() => {
-      this.busy = false;
+      this.current = null;
+      this.#failed(path, `no answer from the HomeBase within ${Math.round(this.timeoutMs / 1000)} s`);
       this.#pump();
     }, this.timeoutMs);
     this.timer.unref?.();

@@ -51,6 +51,7 @@ export class EufyConnector {
     this.images = new ImageStore({
       download: (path) => this.pathStation.get(path).downloadImage(path),
       log: (m) => this.log("local", m),
+      nameOf: (sn) => this.state.cameras[sn]?.name ?? sn,
     });
     this.live = new LiveStreams({
       start: (sn) => this.client.startStationLivestream(sn),
