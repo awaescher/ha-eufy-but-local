@@ -30,8 +30,11 @@ export function adtsDurationMs(chunk) {
   const blocks = (chunk[6] & 0x03) + 1;
   return (blocks * 1024 * 1000) / rate;
 }
-// Home Assistant stops an unwatched stream after 30 s (stream OUTPUT_IDLE_TIMEOUT).
-const SWITCH_COOLDOWN_MS = 30_000;
+// Home Assistant's stream worker retries 10, 30 and 60 s after its stream ended
+// (STREAM_RESTART_INCREMENT) and stops an unwatched stream after 30 s (OUTPUT_IDLE_TIMEOUT).
+// With exactly 30 s, its second retry took the HomeBase back from the camera opened in the
+// Home app (seen on hardware); 45 s refuses it, and the stream is gone before the third.
+const SWITCH_COOLDOWN_MS = 45_000;
 // A few seconds of video at the bitrates seen so far; above this a viewer is too far behind.
 export const MAX_VIEWER_BACKLOG_BYTES = 512 * 1024;
 // How often a running stream reports a newer still frame; Apple Home asks about every 10 s.
